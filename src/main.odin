@@ -43,89 +43,17 @@ push_fatal :: proc(err: SpallError) -> ! {
 	os.exit(1)
 }
 
-string_block: [dynamic]u8
-
 main :: proc() {
 	if len(os.args) < 2 {
 		fmt.eprintf("Expected: %v <tracename.spall>\n", os.args[0])
 		os.exit(1)
 	}
 
-	CHUNK_BUFFER_SIZE :: 64 * 1024
-	string_block = make([dynamic]u8)
-	chunk_buffer := make([]u8, CHUNK_BUFFER_SIZE)
-
 	start_tick := time.tick_now()
-
-	trace_fd, err := os.open(os.args[1])
-	if err != 0 {
-		fmt.printf("Failed to open %s\n", os.args[1])
-		os.exit(1)
-	}
-	total_size, err2 := os.file_size(trace_fd)
-	if err != 0 {
-		fmt.printf("Failed to get file size for %s\n", os.args[1])
-		os.exit(1)
-	}
-
-	rd_sz, err3 := os.read(trace_fd, chunk_buffer)
-	if err2 != 0 {
-		fmt.printf("Failed to read %s\n", os.args[1])
-		os.exit(1)
-	}
-
-	// parse header
-	full_chunk := chunk_buffer[:rd_sz]
-
-	header_sz := i64(size_of(spall.Header))
-	if i64(len(full_chunk)) < header_sz {
-		push_fatal(SpallError.InvalidFile)
-	}
-
-	magic := (^u64)(raw_data(full_chunk))^
-	if magic != spall.MAGIC {
-		push_fatal(SpallError.InvalidFile)
-	}
-
-	hdr := cast(^spall.Header)raw_data(full_chunk)
-	if hdr.version != 1 {
-		fmt.printf("Your file version (%d) is not supported!\n", hdr.version)
-		push_fatal(SpallError.InvalidFileVersion)
-	}
-	
-	p := init_parser()
-	p.pos += header_sz
-
-	temp_ev := TempEvent{}
-
-	// loop over the event data
-	for p.pos < total_size {
-		chunk := full_chunk[chunk_pos(&p):]
-
-		mem.zero(&temp_ev, size_of(TempEvent))
-		state := get_next_event(&p, chunk, &temp_ev)
-		#partial switch state {
-		case .PartialRead:
-			p.offset = p.pos
-
-			_, err := os.seek(trace_fd, p.pos, os.SEEK_SET)
-			if err != 0 {
-				push_fatal(SpallError.FileFailure)
-			}
-			rd_sz, err2 := os.read(trace_fd, chunk_buffer)
-			if err2 != 0 {
-				push_fatal(SpallError.FileFailure)
-			}
-
-			full_chunk = chunk_buffer[:rd_sz]
-			continue
-		case .Failure:
-			push_fatal(SpallError.InvalidFile)
-		}
-	}
+	trace := load_file(os.args[1])
 
 	duration := time.tick_since(start_tick)
-	fmt.printf("runtime: %f ms\n", time.duration_milliseconds(duration))
+	fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 	os.exit(0)
 
 /*

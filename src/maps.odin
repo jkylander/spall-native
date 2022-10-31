@@ -21,14 +21,14 @@ INMap :: struct {
 }
 
 in_init :: proc(allocator := context.allocator) -> INMap {
-	v := INMap{}
-	v.entries = make([dynamic]INStr, 0, allocator)
-	v.hashes = make([dynamic]int, 32, allocator) // must be a power of two
+	v := INMap{
+		entries = make([dynamic]INStr, 0, allocator),
+		hashes = make([dynamic]int, 32, allocator), // must be a power of two
+	}
 	for i in 0..<len(v.hashes) {
 		v.hashes[i] = -1
 	}
 	v.resize_threshold = i64(f64(len(v.hashes)) * INMAP_LOAD_FACTOR) 
-	v.len_minus_one = u32(len(v.hashes) - 1)
 	return v
 }
 
@@ -38,10 +38,10 @@ in_hash :: proc (key: string) -> u32 #no_bounds_check {
 }
 
 
-in_reinsert :: proc (v: ^INMap, entry: INStr, v_idx: int) {
-	hv := in_hash(in_getstr(entry)) & v.len_minus_one
-	for i: u32 = 0; i < u32(len(v.hashes)); i += 1 {
-		idx := (hv + i) & v.len_minus_one
+in_reinsert :: proc (v: ^INMap, strings: ^[dynamic]u8, entry: INStr, v_idx: int) {
+	hv := u64(in_hash(in_getstr(strings, entry))) & u64(len(v.hashes) - 1)
+	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
+		idx := (u64(hv) + i) & u64(len(v.hashes) - 1)
 
 		e_idx := v.hashes[idx]
 		if e_idx == -1 {
@@ -51,39 +51,38 @@ in_reinsert :: proc (v: ^INMap, entry: INStr, v_idx: int) {
 	}
 }
 
-in_grow :: proc(v: ^INMap) {
+in_grow :: proc(v: ^INMap, strings: ^[dynamic]u8) {
 	resize(&v.hashes, len(v.hashes) * 2)
 	for i in 0..<len(v.hashes) {
 		v.hashes[i] = -1
 	}
 
 	v.resize_threshold = i64(f64(len(v.hashes)) * INMAP_LOAD_FACTOR) 
-	v.len_minus_one = u32(len(v.hashes) - 1)
 	for entry, idx in v.entries {
-		in_reinsert(v, entry, idx)
+		in_reinsert(v, strings, entry, idx)
 	}
 }
 
-in_get :: proc(v: ^INMap, key: string) -> INStr {
+in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> INStr {
 	if i64(len(v.entries)) >= v.resize_threshold {
-		in_grow(v)
+		in_grow(v, strings)
 	}
 
-	hv := in_hash(key) & v.len_minus_one
-	for i: u32 = 0; i < u32(len(v.hashes)); i += 1 {
-		idx := (hv + i) & v.len_minus_one
+	hv := u64(in_hash(key)) & u64(len(v.hashes) - 1)
+	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
+		idx := (u64(hv) + i) & u64(len(v.hashes) - 1)
 
 		e_idx := v.hashes[idx]
 		if e_idx == -1 {
 			v.hashes[idx] = len(v.entries)
 
-			str_start := len(string_block)
+			str_start := len(strings)
 			in_str := INStr{str_start, u16(len(key))}
-			append_elem_string(&string_block, key)
+			append_elem_string(strings, key)
 			append(&v.entries, in_str)
 
 			return in_str
-		} else if in_getstr(v.entries[e_idx]) == key {
+		} else if in_getstr(strings, v.entries[e_idx]) == key {
 			return v.entries[e_idx]
 		}
 	}
@@ -91,6 +90,96 @@ in_get :: proc(v: ^INMap, key: string) -> INStr {
 	push_fatal(SpallError.Bug)
 }
 
-in_getstr :: #force_inline proc(v: INStr) -> string {
-	return string(string_block[v.start:v.start+int(v.len)])
+in_getstr :: #force_inline proc(v: ^[dynamic]u8, s: INStr) -> string {
+	return string(v[s.start:s.start+int(s.len)])
+}
+
+// u32 -> u32 map
+PTEntry :: struct {
+	key: u32,
+	val: int,
+}
+ValHash :: struct {
+	entries: [dynamic]PTEntry,
+	hashes:  [dynamic]int,
+}
+
+vh_init :: proc(allocator := context.allocator) -> ValHash {
+	v := ValHash{}
+	v.entries = make([dynamic]PTEntry, 0, allocator)
+	v.hashes = make([dynamic]int, 32, allocator) // must be a power of two
+	for i in 0..<len(v.hashes) {
+		v.hashes[i] = -1
+	}
+	return v
+}
+
+// this is a fibhash.. Replace me if I'm dumb
+vh_hash :: proc "contextless" (key: u32) -> u32 {
+	return key * 2654435769
+}
+
+vh_find :: proc "contextless" (v: ^ValHash, key: u32, loc := #caller_location) -> (int, bool) {
+	hv := u64(vh_hash(key)) & u64(len(v.hashes) - 1)
+	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
+		idx := (hv + i) & u64(len(v.hashes) - 1)
+
+		e_idx := v.hashes[idx]
+		if e_idx == -1 {
+			return -1, false
+		}
+
+		if v.entries[e_idx].key == key {
+			return v.entries[e_idx].val, true
+		}
+	}
+
+	return -1, false
+}
+
+vh_grow :: proc(v: ^ValHash) {
+	resize(&v.hashes, len(v.hashes) * 2)
+	for i in 0..<len(v.hashes) {
+		v.hashes[i] = -1
+	}
+
+	for entry, idx in v.entries {
+		vh_reinsert(v, entry, idx)
+	}
+}
+
+vh_reinsert :: proc "contextless" (v: ^ValHash, entry: PTEntry, v_idx: int) {
+	hv := u64(vh_hash(entry.key)) & u64(len(v.hashes) - 1)
+	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
+		idx := (hv + i) & u64(len(v.hashes) - 1)
+
+		e_idx := v.hashes[idx]
+		if e_idx == -1 {
+			v.hashes[idx] = v_idx
+			return
+		}
+	}
+}
+
+vh_insert :: proc(v: ^ValHash, key: u32, val: int) {
+	if len(v.entries) >= int(f64(len(v.hashes)) * 0.75) {
+		vh_grow(v)
+	}
+
+	hv := u64(vh_hash(key)) & u64(len(v.hashes) - 1)
+	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
+		idx := (hv + i) & u64(len(v.hashes) - 1)
+
+		e_idx := v.hashes[idx]
+		if e_idx == -1 {
+			v.hashes[idx] = len(v.entries)
+			append(&v.entries, PTEntry{key, val})
+			return
+		} else if v.entries[e_idx].key == key {
+			v.entries[e_idx] = PTEntry{key, val}
+			return
+		}
+	}
+
+	push_fatal(SpallError.Bug)
 }
