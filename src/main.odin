@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:time"
 import "core:os"
 import "core:mem"
+import "core:intrinsics"
 
 import glm "core:math/linalg/glsl"
 
@@ -13,27 +14,42 @@ import gl "vendor:OpenGL"
 import "formats:spall"
 
 
+VertAttrs :: enum u32 {
+	IdxPos = 0,
+	RectPos = 1,
+	Color = 2,
+}
+
 vertex_source := `#version 330 core
-layout(location=0) in vec3 a_position;
-layout(location=1) in vec4 a_color;
+
+// idx_pos  {x, y}
+layout(location=0) in vec2 idx_pos;
+
+// rect_pos {x, y, width, height}
+layout(location=1) in vec4 rect_pos;
+layout(location=2) in vec4 color;
+
+uniform float u_dpr;
+uniform vec2  u_resolution;
 
 out vec4 v_color;
 
-uniform mat4 u_transform;
-
 void main() {
-	gl_Position = u_transform * vec4(a_position, 1.0);
-	v_color = a_color;
+	vec2 xy = vec2(rect_pos.x * u_dpr, rect_pos.y) + (idx_pos * vec2(rect_pos.z * u_dpr, rect_pos.w * u_dpr));
+
+	gl_Position = vec4((xy / u_resolution) * 2.0 - 1.0, 0.0, 1.0);
+	gl_Position.y = -gl_Position.y;
+
+	v_color = color;
 }
 `
 
 fragment_source := `#version 330 core
 in vec4 v_color;
-
-out vec4 o_color;
+out vec4 out_color;
 
 void main() {
-	o_color = v_color;
+	out_color = v_color;
 }
 `
 
@@ -44,6 +60,7 @@ push_fatal :: proc(err: SpallError) -> ! {
 }
 
 main :: proc() {
+/*
 	if len(os.args) < 2 {
 		fmt.eprintf("Expected: %v <tracename.spall>\n", os.args[0])
 		os.exit(1)
@@ -55,18 +72,20 @@ main :: proc() {
 	duration := time.tick_since(start_tick)
 	fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 	os.exit(0)
+*/
 
-/*
-	WINDOW_WIDTH  :: 640
-	WINDOW_HEIGHT :: 480
+	window_width: i32 = 640
+	window_height: i32 = 480
 
 	SDL.Init({.VIDEO})
 
-	window := SDL.CreateWindow("spall", SDL.WINDOWPOS_UNDEFINED, SDL.WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, {.OPENGL})
+	window := SDL.CreateWindow("spall", SDL.WINDOWPOS_UNDEFINED, SDL.WINDOWPOS_UNDEFINED, window_width, window_height, {.OPENGL, .RESIZABLE, .ALLOW_HIGHDPI})
 	if window == nil {
 		fmt.eprintln("Failed to create window")
 		return
 	}
+
+	SDL.GetWindowSize(window, &window_width, &window_height)
 
 	GL_VERSION_MAJOR :: 3
 	GL_VERSION_MINOR :: 3
@@ -77,6 +96,8 @@ main :: proc() {
 	gl_context := SDL.GL_CreateContext(window)
 	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, SDL.gl_set_proc_address)
 
+	SDL.GL_SetSwapInterval(-1)
+
 	program, program_ok := gl.load_shaders_source(vertex_source, fragment_source)
 	if !program_ok {
 		fmt.eprintln("Failed to create GLSL program")
@@ -84,47 +105,70 @@ main :: proc() {
 	}
 
 	gl.UseProgram(program)
-
 	uniforms := gl.get_uniforms_from_program(program)
 
 	vao: u32
-	gl.GenVertexArrays(1, &vao); defer gl.DeleteVertexArrays(1, &vao)
+	gl.GenVertexArrays(1, &vao);
 	gl.BindVertexArray(vao)
 
-	vbo, ebo: u32
-	gl.GenBuffers(1, &vbo); defer gl.DeleteBuffers(1, &vbo)
-	gl.GenBuffers(1, &ebo); defer gl.DeleteBuffers(1, &ebo)
-
-	Vertex :: struct {
-		pos: glm.vec3,
-		col: glm.vec4,
+	// Set up dynamic rect buffer
+	_RectPos :: struct {
+		x: f32,
+		y: f32,
+		width: f32,
+		height: f32,
+	}
+	_Color :: struct {
+		r: f32,
+		g: f32,
+		b: f32,
+		a: f32,
+	}
+	_Vertex :: struct {
+		rect_pos: _RectPos,
+		color: _Color,
 	}
 
-	vertices := []Vertex{
-		{{-0.5, +0.5, 0}, {1.0, 0.0, 0.0, 0.75}},
-		{{-0.5, -0.5, 0}, {1.0, 1.0, 0.0, 0.75}},
-		{{+0.5, -0.5, 0}, {0.0, 1.0, 0.0, 0.75}},
-		{{+0.5, +0.5, 0}, {0.0, 0.0, 1.0, 0.75}},
-	}
+	rect_deets_buffer: u32
+	gl.GenBuffers(1, &rect_deets_buffer)
+	gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
 
+	gl.EnableVertexAttribArray(u32(VertAttrs.RectPos))
+	gl.VertexAttribPointer(u32(VertAttrs.RectPos), 4, gl.FLOAT, false, size_of(_Vertex), offset_of(_Vertex, rect_pos))
+	gl.VertexAttribDivisor(u32(VertAttrs.RectPos), 1)
+
+	gl.EnableVertexAttribArray(u32(VertAttrs.Color))
+	gl.VertexAttribPointer(u32(VertAttrs.Color), 4, gl.FLOAT, false, size_of(_Vertex), offset_of(_Vertex, color))
+	gl.VertexAttribDivisor(u32(VertAttrs.Color), 1)
+
+
+	// Set up rect points buffer
+	rect_pos := []glm.vec2{ {0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0} }
+	rect_points_buffer: u32
+	gl.GenBuffers(1, &rect_points_buffer)
+	gl.BindBuffer(gl.ARRAY_BUFFER, rect_points_buffer)
+	gl.BufferData(gl.ARRAY_BUFFER, len(rect_pos)*size_of(rect_pos[0]), raw_data(rect_pos), gl.STATIC_DRAW)
+	gl.EnableVertexAttribArray(u32(VertAttrs.IdxPos))
+	gl.VertexAttribPointer(u32(VertAttrs.IdxPos), 2, gl.FLOAT, false, 0, 0)
+
+
+	// Set up rect index buffer
 	indices := []u16{
 		0, 1, 2,
-		2, 3, 0,
+		2, 1, 3,
 	}
-
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*size_of(vertices[0]), raw_data(vertices), gl.STATIC_DRAW)
-	gl.EnableVertexAttribArray(0)
-	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, pos))
-	gl.VertexAttribPointer(1, 4, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, col))
-
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+	rect_idx_buffer: u32
+	gl.GenBuffers(1, &rect_idx_buffer)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, rect_idx_buffer)
 	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*size_of(indices[0]), raw_data(indices), gl.STATIC_DRAW)
+	
 
 	// high precision timer
 	start_tick := time.tick_now()
 
+	width := f32(window_width)
+	height := f32(window_height)
+	gl.Viewport(0, 0, window_width, window_height)
 	loop: for {
 		duration := time.tick_since(start_tick)
 		t := f32(time.duration_seconds(duration))
@@ -140,41 +184,30 @@ main :: proc() {
 				}
 			case .QUIT:
 				break loop
+			case .WINDOWEVENT:
+				#partial switch event.window.event {
+				case .RESIZED:
+					width = f32(event.window.data1)
+					height = f32(event.window.data2)
+					gl.Viewport(0, 0, event.window.data1, event.window.data2)
+				}
 			}
 		}
 
-		// Native support for GLSL-like functionality
-		pos := glm.vec3{glm.cos(t * 2), glm.sin(t * 2), 0,}
-		pos *= 0.3
-
-		model := glm.mat4{
-			0.5,   0,   0, 0,
-			  0, 0.5,   0, 0,
-			  0,   0, 0.5, 0,
-			  0,   0,   0, 1,
-		}
-
-		model[0, 3] = -pos.x
-		model[1, 3] = -pos.y
-		model[2, 3] = -pos.z
-		model[3].yzx = pos.yzx
-
-		model = model * glm.mat4Rotate({0, 1, 1}, t)
-
-		view := glm.mat4LookAt({0, -1, +1}, {0, 0, 0}, {0, 0, 1})
-		proj := glm.mat4Perspective(45, 1.3, 0.1, 100.0)
-
-		u_transform := proj * view * model
-
-		gl.UniformMatrix4fv(uniforms["u_transform"].location, 1, false, &u_transform[0, 0])
-
-		gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 		gl.ClearColor(0.5, 0.7, 1.0, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
-		gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+		gl.Uniform1f(uniforms["u_dpr"].location, 1)
+		gl.Uniform2f(uniforms["u_resolution"].location, width, height)
+		gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
+		gl.BindVertexArray(vao);
+
+		rects := []_Vertex{
+			{{(width / 4), (height / 4), width / 2, height / 2}, {0.0, 0.0, 1.0, 1.0}}
+		}
+		gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
+		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
 
 		SDL.GL_SwapWindow(window)
 	}
-*/
 }
