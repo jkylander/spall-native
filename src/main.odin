@@ -60,6 +60,11 @@ push_fatal :: proc(err: SpallError) -> ! {
 	os.exit(1)
 }
 
+draw_rect :: proc(rects: ^[dynamic]DrawRect, rect: Rect, color: FVec4) {
+	append(rects, DrawRect{FVec4{f32(rect.pos.x), f32(rect.pos.y), f32(rect.size.x), f32(rect.size.y)}, color})
+}
+
+colormode: ColorMode
 main :: proc() {
 	window_width: i32 = 640
 	window_height: i32 = 480
@@ -99,33 +104,16 @@ main :: proc() {
 	gl.BindVertexArray(vao)
 
 	// Set up dynamic rect buffer
-	_RectPos :: struct {
-		x: f32,
-		y: f32,
-		width: f32,
-		height: f32,
-	}
-	_Color :: struct {
-		r: f32,
-		g: f32,
-		b: f32,
-		a: f32,
-	}
-	_Vertex :: struct {
-		rect_pos: _RectPos,
-		color: _Color,
-	}
-
 	rect_deets_buffer: u32
 	gl.GenBuffers(1, &rect_deets_buffer)
 	gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
 
 	gl.EnableVertexAttribArray(u32(VertAttrs.RectPos))
-	gl.VertexAttribPointer(u32(VertAttrs.RectPos), 4, gl.FLOAT, false, size_of(_Vertex), offset_of(_Vertex, rect_pos))
+	gl.VertexAttribPointer(u32(VertAttrs.RectPos), 4, gl.FLOAT, false, size_of(DrawRect), offset_of(DrawRect, pos))
 	gl.VertexAttribDivisor(u32(VertAttrs.RectPos), 1)
 
 	gl.EnableVertexAttribArray(u32(VertAttrs.Color))
-	gl.VertexAttribPointer(u32(VertAttrs.Color), 4, gl.FLOAT, false, size_of(_Vertex), offset_of(_Vertex, color))
+	gl.VertexAttribPointer(u32(VertAttrs.Color), 4, gl.FLOAT, false, size_of(DrawRect), offset_of(DrawRect, color))
 	gl.VertexAttribDivisor(u32(VertAttrs.Color), 1)
 
 
@@ -149,9 +137,11 @@ main :: proc() {
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, rect_idx_buffer)
 	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*size_of(indices[0]), raw_data(indices), gl.STATIC_DRAW)
 	
-	width := f32(window_width)
-	height := f32(window_height)
+	width := f64(window_width)
+	height := f64(window_height)
 	gl.Viewport(0, 0, window_width, window_height)
+
+	rects := make([dynamic]DrawRect)
 
 	start_tick := time.tick_now()
 	loop: for {
@@ -172,8 +162,8 @@ main :: proc() {
 			case .WINDOWEVENT:
 				#partial switch event.window.event {
 				case .RESIZED:
-					width = f32(event.window.data1)
-					height = f32(event.window.data2)
+					width = f64(event.window.data1)
+					height = f64(event.window.data2)
 					gl.Viewport(0, 0, event.window.data1, event.window.data2)
 				}
 			case .DROPFILE:
@@ -190,17 +180,18 @@ main :: proc() {
 			}
 		}
 
+		resize(&rects, 0)
+
 		gl.ClearColor(0.5, 0.7, 1.0, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		gl.Uniform1f(uniforms["u_dpr"].location, 1)
-		gl.Uniform2f(uniforms["u_resolution"].location, width, height)
+		gl.Uniform2f(uniforms["u_resolution"].location, f32(width), f32(height))
 		gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
 		gl.BindVertexArray(vao);
 
-		rects := []_Vertex{
-			{{(width / 4), (height / 4), width / 2, height / 2}, {0.0, 0.0, 1.0, 1.0}}
-		}
+		draw_rect(&rects, rect(width / 4, height / 4, width / 2, height / 2), FVec4{0.0, 0.0, 1.0, 1.0})
+
 		gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
 		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
 

@@ -11,7 +11,10 @@ Rect :: struct {
 rect :: #force_inline proc(x, y, w, h: f64) -> Rect {
 	return Rect{Vec2{x, y}, Vec2{w, h}}
 }
-
+DrawRect :: struct {
+	pos: FVec4,
+	color: FVec4,
+}
 
 SpallError :: enum int {
 	NoError = 0,
@@ -20,6 +23,15 @@ SpallError :: enum int {
 	InvalidFile = 3,
 	InvalidFileVersion = 4,
 	FileFailure = 5,
+}
+
+Camera :: struct {
+	pan: Vec2,
+	vel: Vec2,
+	target_pan_x: f64,
+
+	current_scale: f64,
+	target_scale: f64,
 }
 
 EventType :: enum {
@@ -59,14 +71,17 @@ Instant :: struct #packed {
 }
 
 Trace :: struct {
+	parser: Parser,
 	string_block: [dynamic]u8,
+	color_choices: [16]FVec3,
+
 	processes: [dynamic]Process,
 	process_map: ValHash,
+
 	total_max_time: f64,
 	total_min_time: f64,
 	event_count: u64,
 	stamp_scale: f64,
-	parser: Parser,
 }
 
 BUCKET_SIZE :: 8
@@ -143,6 +158,7 @@ init_thread :: proc(thread_id: u32) -> Thread {
 free_thread :: proc(thread: ^Thread) {
 	for depth in thread.depths {
 		delete(depth.events)
+		delete(depth.tree)
 	}
 	delete(thread.depths)
 	delete(thread.instants)
