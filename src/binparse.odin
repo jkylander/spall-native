@@ -76,7 +76,12 @@ bin_push_event :: proc(trace: ^Trace, process_id, thread_id: u32, event: ^Event)
 
 	t := &p.threads[t_idx]
 	t.min_time = min(t.min_time, event.timestamp)
-	t.max_time = max(t.max_time, event.timestamp + event.duration)
+	if t.max_time > event.timestamp {
+		fmt.printf("Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s]\n", 
+			process_id, thread_id, in_getstr(&trace.string_block, event.name))
+		push_fatal(SpallError.InvalidFile)
+	}
+	t.max_time = event.timestamp + event.duration
 
 	trace.total_min_time = min(trace.total_min_time, event.timestamp)
 	trace.total_max_time = max(trace.total_max_time, event.timestamp + event.duration)
@@ -100,14 +105,18 @@ parse_binary :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size
 	ev := Event{}
 	p := &trace.parser
 
+	last_read: i64 = 0
 	full_chunk := chunk_buffer[:read_size]
 	load_loop: for p.pos < total_size {
 		mem.zero(&temp_ev, size_of(TempEvent))
 		state := get_next_event(trace, full_chunk, &temp_ev)
 		#partial switch state {
 		case .PartialRead:
-			if p.pos + i64(size_of(spall.End_Event)) > i64(total_size) {
-				push_fatal(SpallError.InvalidFile)
+			if p.pos == last_read {
+				fmt.printf("Invalid trailing data? dropping from [%d -> %d] (%d bytes)\n", p.pos, total_size, total_size - p.pos)
+				break load_loop
+			} else {
+				last_read = p.pos
 			}
 
 			p.offset = p.pos
