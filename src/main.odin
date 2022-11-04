@@ -191,7 +191,7 @@ main :: proc() {
 	width := f64(real_window_width)
 	height := f64(real_window_height)
 	scale := f64(real_window_width) / f64(orig_window_width)
-					fmt.printf("%f, %f\n", width, height)
+					fmt.printf("(%f, %f), scale: %f\n", width, height, scale)
 
 	rect_program, rect_prog_ok := gl.load_shaders_source(rect_vert_src, rect_frag_src)
 	if !rect_prog_ok {
