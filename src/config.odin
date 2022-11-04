@@ -328,7 +328,7 @@ generate_selftimes :: proc(trace: ^Trace) {
 
 pid_sort_proc :: proc(a, b: Process) -> bool { return a.min_time < b.min_time }
 tid_sort_proc :: proc(a, b: Thread) -> bool  { return a.min_time < b.min_time }
-load_file :: proc(filename: string) -> Trace {
+load_file :: proc(trace: ^Trace, filename: string) {
 	start_time := time.tick_now()
 
 	trace_fd, err := os.open(filename)
@@ -340,7 +340,7 @@ load_file :: proc(filename: string) -> Trace {
 	chunk_buffer := make([]u8, 1 * 1024 * 1024)
 	defer delete(chunk_buffer)
 
-	trace := Trace{
+	trace^ = Trace{
 		processes = make([dynamic]Process),
 		process_map = vh_init(),
 		total_max_time = 0,
@@ -389,9 +389,9 @@ load_file :: proc(filename: string) -> Trace {
 
 	#partial switch file_type {
 	case .SpallStream:
-		parse_binary(&trace, trace_fd, chunk_buffer, i64(rd_sz), total_size)
+		parse_binary(trace, trace_fd, chunk_buffer, i64(rd_sz), total_size)
 	}
-	free_trace_temps(&trace)
+	free_trace_temps(trace)
 
 	#partial switch file_type {
 	case .SpallStream:
@@ -404,12 +404,10 @@ load_file :: proc(filename: string) -> Trace {
 	duration := time.tick_since(start_time)
 	fmt.printf("parse config -- %f ms\n", time.duration_milliseconds(duration))
 	
-	generate_color_choices(&trace)
+	generate_color_choices(trace)
 
 	start_time = time.tick_now()
-	chunk_events(&trace)
+	chunk_events(trace)
 	duration = time.tick_since(start_time)
 	fmt.printf("generate spatial partitions -- %f ms\n", time.duration_milliseconds(duration))
-
-	return trace
 }

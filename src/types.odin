@@ -1,9 +1,14 @@
 package main
 
 Vec2 :: [2]f64
+FVec2 :: [2]f32
+
 Vec3 :: [3]f64
 FVec3 :: [3]f32
+
 FVec4 :: [4]f32
+BVec4 :: [4]u8
+
 Rect :: struct {
 	pos: Vec2,
 	size: Vec2,
@@ -11,9 +16,10 @@ Rect :: struct {
 rect :: #force_inline proc(x, y, w, h: f64) -> Rect {
 	return Rect{Vec2{x, y}, Vec2{w, h}}
 }
-DrawRect :: struct {
+DrawRect :: struct #packed {
 	pos: FVec4,
-	color: FVec4,
+	color: BVec4,
+	uv: FVec2,
 }
 
 SpallError :: enum int {

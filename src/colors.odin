@@ -4,30 +4,30 @@ import "core:mem"
 import "core:math/rand"
 import "core:math/linalg/glsl"
 
-bg_color      := FVec4{}
-bg_color2     := FVec4{}
-text_color    := FVec4{}
-text_color2   := FVec4{}
-text_color3   := FVec4{}
-line_color    := FVec4{}
-division_color    := FVec4{}
-subdivision_color := FVec4{}
-outline_color := FVec4{}
-xbar_color    := FVec4{}
+bg_color      := BVec4{}
+bg_color2     := BVec4{}
+text_color    := BVec4{}
+text_color2   := BVec4{}
+text_color3   := BVec4{}
+line_color    := BVec4{}
+division_color    := BVec4{}
+subdivision_color := BVec4{}
+outline_color := BVec4{}
+xbar_color    := BVec4{}
 
-subbar_color := FVec4{}
-subbar_split_color := FVec4{}
-toolbar_color := FVec4{}
-toolbar_button_color  := FVec4{}
-toolbar_text_color := FVec4{}
-loading_block_color := FVec4{}
+subbar_color := BVec4{}
+subbar_split_color := BVec4{}
+toolbar_color := BVec4{}
+toolbar_button_color  := BVec4{}
+toolbar_text_color := BVec4{}
+loading_block_color := BVec4{}
 
-graph_color   := FVec4{}
-highlight_color := FVec4{}
-shadow_color := FVec4{}
-wide_rect_color := FVec4{}
-wide_bg_color := FVec4{}
-rect_tooltip_stats_color := FVec4{}
+graph_color   := BVec4{}
+highlight_color := BVec4{}
+shadow_color := BVec4{}
+wide_rect_color := BVec4{}
+wide_bg_color := BVec4{}
+rect_tooltip_stats_color := BVec4{}
 
 ColorMode :: enum {
 	Dark,
@@ -36,60 +36,60 @@ ColorMode :: enum {
 }
 
 default_colors :: proc "contextless" (is_dark: bool) {
-	loading_block_color  = FVec4{100, 194, 236, 255}
+	loading_block_color  = BVec4{100, 194, 236, 255}
 
 	if is_dark {
-		bg_color         = FVec4{15,   15,  15, 255}
-		bg_color2        = FVec4{0,     0,   0, 255}
-		text_color       = FVec4{255, 255, 255, 255}
-		text_color2      = FVec4{180, 180, 180, 255}
-		text_color3      = FVec4{0,     0,   0, 255}
-		line_color       = FVec4{0,     0,   0, 255}
-		outline_color    = FVec4{80,   80,  80, 255}
+		bg_color         = BVec4{15,   15,  15, 255}
+		bg_color2        = BVec4{0,     0,   0, 255}
+		text_color       = BVec4{255, 255, 255, 255}
+		text_color2      = BVec4{180, 180, 180, 255}
+		text_color3      = BVec4{0,     0,   0, 255}
+		line_color       = BVec4{0,     0,   0, 255}
+		outline_color    = BVec4{80,   80,  80, 255}
 
-		subbar_color         = FVec4{0x33, 0x33, 0x33, 255}
-		subbar_split_color   = FVec4{0x50, 0x50, 0x50, 255}
-		toolbar_button_color = FVec4{40, 40, 40, 255}
-		toolbar_color        = FVec4{0x00, 0x83, 0xb7, 255}
-		toolbar_text_color   = FVec4{0xF5, 0xF5, 0xF5, 255}
+		subbar_color         = BVec4{0x33, 0x33, 0x33, 255}
+		subbar_split_color   = BVec4{0x50, 0x50, 0x50, 255}
+		toolbar_button_color = BVec4{40, 40, 40, 255}
+		toolbar_color        = BVec4{0x00, 0x83, 0xb7, 255}
+		toolbar_text_color   = BVec4{0xF5, 0xF5, 0xF5, 255}
 
-		graph_color      = FVec4{180, 180, 180, 255}
-		highlight_color  = FVec4{  0,   0, 255,  32}
-		wide_rect_color  = FVec4{  0, 255,   0,   0}
-		wide_bg_color    = FVec4{  0,   0,   0, 255}
-		shadow_color     = FVec4{  0,   0,   0, 120}
+		graph_color      = BVec4{180, 180, 180, 255}
+		highlight_color  = BVec4{  0,   0, 255,  32}
+		wide_rect_color  = BVec4{  0, 255,   0,   0}
+		wide_bg_color    = BVec4{  0,   0,   0, 255}
+		shadow_color     = BVec4{  0,   0,   0, 120}
 
-		subdivision_color = FVec4{ 30,  30, 30, 255}
-		division_color    = FVec4{100, 100, 100, 255}
-		xbar_color        = FVec4{180, 180, 180, 255}
+		subdivision_color = BVec4{ 30,  30, 30, 255}
+		division_color    = BVec4{100, 100, 100, 255}
+		xbar_color        = BVec4{180, 180, 180, 255}
 
-		rect_tooltip_stats_color = FVec4{150, 255, 150, 255}
+		rect_tooltip_stats_color = BVec4{150, 255, 150, 255}
 	} else {
-		bg_color         = FVec4{254, 252, 248, 255}
-		bg_color2        = FVec4{255, 255, 255, 255}
-		text_color       = FVec4{0,     0,   0, 255}
-		text_color2      = FVec4{80,   80,  80, 255}
-		text_color3      = FVec4{0,     0,   0, 255}
-		line_color       = FVec4{200, 200, 200, 255}
-		outline_color    = FVec4{219, 211, 205, 255}
+		bg_color         = BVec4{254, 252, 248, 255}
+		bg_color2        = BVec4{255, 255, 255, 255}
+		text_color       = BVec4{0,     0,   0, 255}
+		text_color2      = BVec4{80,   80,  80, 255}
+		text_color3      = BVec4{0,     0,   0, 255}
+		line_color       = BVec4{200, 200, 200, 255}
+		outline_color    = BVec4{219, 211, 205, 255}
 
-		subbar_color         = FVec4{235, 230, 225, 255}
-		subbar_split_color   = FVec4{150, 150, 150, 255}
-		toolbar_button_color = FVec4{40, 40, 40, 255}
-		toolbar_color        = FVec4{0x00, 0x83, 0xb7, 255}
-		toolbar_text_color   = FVec4{0xF5, 0xF5, 0xF5, 255}
+		subbar_color         = BVec4{235, 230, 225, 255}
+		subbar_split_color   = BVec4{150, 150, 150, 255}
+		toolbar_button_color = BVec4{40, 40, 40, 255}
+		toolbar_color        = BVec4{0x00, 0x83, 0xb7, 255}
+		toolbar_text_color   = BVec4{0xF5, 0xF5, 0xF5, 255}
 
-		graph_color      = FVec4{69,   49,  34, 255}
-		highlight_color  = FVec4{255, 255,   0,  32}
-		wide_rect_color  = FVec4{  0, 255,   0,   0}
-		wide_bg_color    = FVec4{  0,  0,    0, 255}
-		shadow_color     = FVec4{  0,   0,   0,  15}
+		graph_color      = BVec4{69,   49,  34, 255}
+		highlight_color  = BVec4{255, 255,   0,  32}
+		wide_rect_color  = BVec4{  0, 255,   0,   0}
+		wide_bg_color    = BVec4{  0,  0,    0, 255}
+		shadow_color     = BVec4{  0,   0,   0,  15}
 
-		subdivision_color = FVec4{230, 230, 230, 255}
-		division_color    = FVec4{180, 180, 180, 255}
-		xbar_color        = FVec4{ 80,  80,  80, 255}
+		subdivision_color = BVec4{230, 230, 230, 255}
+		division_color    = BVec4{180, 180, 180, 255}
+		xbar_color        = BVec4{ 80,  80,  80, 255}
 
-		rect_tooltip_stats_color = FVec4{20, 130, 20, 255}
+		rect_tooltip_stats_color = BVec4{20, 130, 20, 255}
 	}
 }
 
@@ -130,13 +130,13 @@ hsv2rgb :: proc(c: FVec3) -> FVec3 {
 	return FVec3{result.x, result.y, result.z}
 }
 
-hex_to_fvec :: proc "contextless" (v: u32) -> FVec4 {
-	a := f32(u8(v >> 24))
-	r := f32(u8(v >> 16))
-	g := f32(u8(v >> 8))
-	b := f32(u8(v >> 0))
+hex_to_fvec :: proc "contextless" (v: u32) -> BVec4 {
+	a := u8(v >> 24)
+	r := u8(v >> 16)
+	g := u8(v >> 8)
+	b := u8(v >> 0)
 
-	return FVec4{r, g, b, a}
+	return BVec4{r, g, b, a}
 }
 
 greyscale :: proc "contextless" (c: FVec3) -> FVec3 {
