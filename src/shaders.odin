@@ -29,7 +29,7 @@ void main() {
 
 	// if line
 	if (uv.y < 0) {
-		float width = uv.x;
+		float width = uv.x * u_dpr;
 		vec2 a = rect_pos.xy;
 		vec2 b = rect_pos.zw;
 		vec2 center = mix(a, b, 0.5);
@@ -86,7 +86,7 @@ float sdOrientedBox(in vec2 p, in vec2 a, in vec2 b, float thick) {
 void main() {
 	// if line
 	if (v_uv.y < 0) {
-		float width = v_uv.x;
+		float width = v_uv.x * u_dpr;
 		vec2 a = v_rect_pos.xy;
 		vec2 b = v_rect_pos.zw;
 

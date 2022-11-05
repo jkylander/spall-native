@@ -40,6 +40,45 @@ Camera :: struct {
 	target_scale: f64,
 }
 
+EventID :: struct {
+	pid: i64,
+	tid: i64,
+	did: i64,
+	eid: i64,
+}
+Stats :: struct {
+	total_time: f64,
+	self_time: f64,
+	avg_time: f64,
+	min_time: f64,
+	max_time: f64,
+	count: u32,
+}
+Range :: struct {
+	pid: int,
+	tid: int,
+	did: int,
+
+	start: int,
+	end: int,
+}
+StatState :: enum {
+	NoStats,
+	Started,
+	Finished,
+}
+SortState :: enum {
+	SelfTime,
+	TotalTime,
+	MinTime,
+	MaxTime,
+	AvgTime,
+}
+StatOffset :: struct {
+	range_idx: int,
+	event_idx: int,
+}
+
 EventType :: enum {
 	Unknown = 0,
 	Instant,
@@ -77,12 +116,15 @@ Instant :: struct #packed {
 }
 
 Trace :: struct {
+	file_name: string,
 	parser: Parser,
 	string_block: [dynamic]u8,
 	color_choices: [16]FVec3,
 
 	processes: [dynamic]Process,
 	process_map: ValHash,
+	selected_ranges: [dynamic]Range,
+	stats: map[string]Stats,
 
 	total_max_time: f64,
 	total_min_time: f64,

@@ -74,6 +74,7 @@ free_trace :: proc(trace: ^Trace) {
 	}
 	delete(trace.processes)
 	delete(trace.string_block)
+	delete(trace.file_name)
 }
 
 bound_duration :: proc(ev: $T, max_ts: f64) -> f64 {
@@ -328,10 +329,11 @@ generate_selftimes :: proc(trace: ^Trace) {
 
 pid_sort_proc :: proc(a, b: Process) -> bool { return a.min_time < b.min_time }
 tid_sort_proc :: proc(a, b: Thread) -> bool  { return a.min_time < b.min_time }
-load_file :: proc(trace: ^Trace, filename: string) {
+load_file :: proc(trace: ^Trace, file_name: string) {
 	start_time := time.tick_now()
+	trace.file_name = file_name
 
-	trace_fd, err := os.open(filename)
+	trace_fd, err := os.open(trace.file_name)
 	if err != 0 {
 		push_fatal(SpallError.InvalidFile)
 	}
