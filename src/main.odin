@@ -20,6 +20,7 @@ import "formats:spall"
 
 // input state
 is_mouse_down  := false
+was_mouse_down := false
 clicked        := false
 mouse_up_now   := false
 is_hovering    := false
@@ -50,12 +51,10 @@ rendered_rect_tooltip := false
 
 did_pan := false
 
-stats: map[string]Stats
 stats_state := StatState.NoStats
 stat_sort_type := SortState.SelfTime
 stat_sort_descending := true
 resort_stats := false
-selected_ranges: [dynamic]Range
 cur_stat_offset := StatOffset{}
 total_tracked_time := 0.0
 
@@ -64,6 +63,9 @@ colormode      := ColorMode.Dark
 disp_rect: Rect
 graph_rect: Rect
 padded_graph_rect: Rect
+
+default_cursor: ^SDL.Cursor
+pointer_cursor: ^SDL.Cursor
 
 // font data
 em : f64 = 14.0
@@ -98,7 +100,7 @@ random_seed     : u64
 
 // loading / trace state
 loading_config := true
-post_loading := false
+post_loading := true
 
 @(cold)
 push_fatal :: proc(err: SpallError) -> ! {
@@ -464,7 +466,7 @@ render_minievents :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, scan_arr: []
 	}
 }
 
-render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int, y, height, start_time, end_time: f64) {
+render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int, y_start, height, start_time, end_time: f64) {
 	thread := trace.processes[pid].threads[tid]
 	depth := thread.depths[did]
 	tree := depth.tree
@@ -498,6 +500,7 @@ render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int
 		// draw summary faketangle
 		min_width := 2.0
 		if range_width < min_width {
+			y := height * f64(did)
 			h := height
 
 			x := cur_node.start_time
@@ -512,7 +515,7 @@ render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int
 
 			r_x    = max(r_x, 0)
 
-			r_y := y
+			r_y := y_start + y
 			dr := Rect{Vec2{r_x, r_y}, Vec2{end_x - r_x, h}}
 
 			rect_color := cur_node.avg_color
@@ -549,7 +552,7 @@ render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int
 		// we're at a bottom node, draw the whole thing
 		if cur_node.child_count == 0 {
 			render_events(rects, trace, 
-				pid, tid, did, depth.events[:], cur_node.start_idx, cur_node.arr_len, y, height, found_rid)
+				pid, tid, did, depth.events[:], cur_node.start_idx, cur_node.arr_len, y_start, height, found_rid)
 			continue
 		}
 
@@ -690,6 +693,9 @@ main :: proc() {
 		return
 	}
 
+	default_cursor = SDL.CreateSystemCursor(.ARROW)
+	pointer_cursor = SDL.CreateSystemCursor(.HAND)
+
 	gl_context := SDL.GL_CreateContext(window)
 	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, SDL.gl_set_proc_address)
 
@@ -775,11 +781,18 @@ main :: proc() {
 		defer {
 			clicked = false
 			is_hovering = false
+			was_mouse_down = false
 			mouse_up_now = false
 			released_event = {-1, -1, -1, -1}
+			frame_count += 1
 		}
 
 		render_one_more := false
+
+		rect_tooltip_rect = EventID{-1, -1, -1, -1}
+		rect_tooltip_pos = Vec2{}
+		rendered_rect_tooltip = false
+
 		cur_tick := time.tick_now()
 		duration := time.tick_since(start_tick)
 		t := time.duration_milliseconds(duration)
@@ -795,26 +808,68 @@ main :: proc() {
 		event: SDL.Event = ---
 		first := true
 		event_loop: for {
+/*
 			if first {
 				SDL.WaitEvent(&event)
 				first = false
 			} else {
-				ret := SDL.PollEvent(&event)
-				if !ret {
-					break event_loop
-				}
+			}
+*/
+			ret := SDL.PollEvent(&event)
+			if !ret {
+				break event_loop
 			}
 
 			#partial switch event.type {
 			case .QUIT:
 				break main_loop
 			case .KEYDOWN:
-/*
 				#partial switch event.key.keysym.sym {
-				case .ESCAPE:
-					break main_loop
+				case .LSHIFT:
+					shift_down = true
 				}
-*/
+			case .KEYUP:
+				#partial switch event.key.keysym.sym {
+				case .LSHIFT:
+					shift_down = false
+				}
+			case .MOUSEMOTION:
+				if frame_count != last_frame_count {
+					last_mouse_pos = mouse_pos
+					last_frame_count = frame_count
+				}
+
+				mouse_pos = Vec2{f64(event.motion.x), f64(event.motion.y)}
+			case .MOUSEBUTTONDOWN:
+				switch event.button.button {
+				case SDL.BUTTON_LEFT:
+					is_mouse_down = true
+					mouse_pos = Vec2{f64(event.button.x), f64(event.button.y)}
+
+					if frame_count != last_frame_count {
+						last_mouse_pos = mouse_pos
+						last_frame_count = frame_count
+					}
+
+					clicked = true
+					clicked_pos = mouse_pos
+				}
+			case .MOUSEBUTTONUP:
+				switch event.button.button {
+				case SDL.BUTTON_LEFT:
+					is_mouse_down = false
+					was_mouse_down = true
+					mouse_up_now = true
+
+					if frame_count != last_frame_count {
+						last_mouse_pos = mouse_pos
+						last_frame_count = frame_count
+					}
+
+					mouse_pos = Vec2{f64(event.button.x), f64(event.button.y)}
+				}
+			case .MOUSEWHEEL:
+				scroll_val_y += f64(event.wheel.preciseY) * 100
 			case .WINDOWEVENT:
 				#partial switch event.window.event {
 				case .RESIZED:
@@ -830,10 +885,8 @@ main :: proc() {
 				start_time := time.tick_now()
 				load_file(&trace, filename)
 				duration := time.tick_since(start_time)
-				if trace.event_count == 0 { 
-					trace.total_min_time = 0;
-					trace.total_max_time = 1000
-				}
+
+				post_loading = true
 
 				fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 			}
@@ -1147,7 +1200,7 @@ main :: proc() {
 
 					cur_depth_off := 0
 					for depth, d_idx in &tm.depths {
-						render_tree(&rects, &trace, p_idx, t_idx, d_idx, (cur_y + (rect_height * f64(d_idx))), rect_height, start_time, end_time)
+						render_tree(&rects, &trace, p_idx, t_idx, d_idx, cur_y, rect_height, start_time, end_time)
 					}
 					cur_y += thread_advance
 				}
@@ -1313,7 +1366,6 @@ main :: proc() {
 			draw_line(&rects, Vec2{0, toolbar_height + time_bar_height + wide_graph_height}, Vec2{width, toolbar_height + time_bar_height + wide_graph_height}, 1, line_color)
 		}
 
-
 		// Render info pane
 		draw_line(&rects, Vec2{0, info_pane_y}, Vec2{width, info_pane_y}, 1, line_color)
 		draw_rect(&rects, rect(0, info_pane_y, width, height), bg_color) // bottom
@@ -1354,7 +1406,6 @@ main :: proc() {
 				selected_event = {-1, -1, -1, -1}
 				info_pane_scroll = 0
 				info_pane_scroll_vel = 0
-
 
 				// try to fake a reduced frame of latency by extrapolating the position by the delta
 				mouse_pos_extrapolated := mouse_pos + 1 * Vec2{pan_delta.x, pan_delta.y} / dt * min(dt, 0.016)
@@ -1423,10 +1474,8 @@ main :: proc() {
 				// push it into screen-space
 				flopped_rect.pos.x -= disp_rect.pos.x
 
-				free(&trace.stats)
-				free(&trace.selected_ranges)
-				trace.stats = make(map[string]Stats)
-				trace.selected_ranges = make([dynamic]Range)
+				clear(&trace.stats)
+				resize(&trace.selected_ranges, 0)
 
 				// build out ranges
 				cur_y := padded_graph_rect.pos.y - cam.pan.y
@@ -1513,7 +1562,7 @@ main :: proc() {
 							}
 
 							if real_start != -1 && real_end != -1 {
-								append(&selected_ranges, Range{p_idx, t_idx, d_idx, real_start, real_end})
+								append(&trace.selected_ranges, Range{p_idx, t_idx, d_idx, real_start, real_end})
 							}
 						}
 						cur_y += thread_advance
@@ -1550,10 +1599,10 @@ main :: proc() {
 						duration := bound_duration(ev, thread.max_time)
 
 						name := in_getstr(&trace.string_block, ev.name)
-						s, ok := &stats[name]
+						s, ok := &trace.stats[name]
 						if !ok {
-							stats[name] = Stats{min_time = 1e308}
-							s = &stats[name]
+							trace.stats[name] = Stats{min_time = 1e308}
+							s = &trace.stats[name]
 						}
 						s.count += 1
 						s.total_time += duration
@@ -1567,7 +1616,7 @@ main :: proc() {
 				}
 
 				if !broke_early {
-					for _, stat in &stats {
+					for _, stat in &trace.stats {
 						stat.avg_time = stat.total_time / f64(stat.count)
 					}
 
@@ -1589,7 +1638,7 @@ main :: proc() {
 						runtime.__dynamic_map_reset_entries(header, loc)
 					}
 
-					sort_map_entries_by_time(&stats)
+					sort_map_entries_by_time(&trace.stats)
 					stats_state = .Finished
 				}
 			}
@@ -1658,8 +1707,8 @@ main :: proc() {
 				y += header_height + (em / 4)
 
 				displayed_lines := info_line_count - 1
-				if displayed_lines < len(stats) {
-					max_lines := len(stats)
+				if displayed_lines < len(trace.stats) {
+					max_lines := len(trace.stats)
 
 					// goofy hack to get line height
 					tmp := y
@@ -1673,7 +1722,7 @@ main :: proc() {
 
 				stat_idx := 0
 				last_pos := 0.0
-				stat_loop: for name, stat in stats {
+				stat_loop: for name, stat in trace.stats {
 					stat_idx += 1
 					if y < (info_pane_y + (em / 2)) {
 						next_line(&y, em)
@@ -1853,7 +1902,7 @@ main :: proc() {
 
 				runtime.__dynamic_map_reset_entries(header, loc)
 			}
-			sort_map_entries_by_time(&stats)
+			sort_map_entries_by_time(&trace.stats)
 			resort_stats = false
 		}
 
@@ -1897,15 +1946,13 @@ main :: proc() {
 				info_pane_scroll = 0
 				info_pane_scroll_vel = 0
 
-				free(&trace.stats)
-				free(&trace.selected_ranges)
-				trace.stats = make(map[string]Stats)
-				trace.selected_ranges = make([dynamic]Range)
+				clear(&trace.stats)
+				resize(&trace.selected_ranges, 0)
 
 				for proc_v, p_idx in trace.processes {
 					for tm, t_idx in proc_v.threads {
 						for depth, d_idx in tm.depths {
-							append(&selected_ranges, Range{p_idx, t_idx, d_idx, 0, len(depth.events)})
+							append(&trace.selected_ranges, Range{p_idx, t_idx, d_idx, 0, len(depth.events)})
 						}
 					}
 				}
