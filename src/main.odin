@@ -16,6 +16,8 @@ import glm "core:math/linalg/glsl"
 import SDL "vendor:sdl2"
 import gl "vendor:OpenGL"
 
+import SDL_TTF "vendor:sdl2/ttf"
+
 import "formats:spall"
 
 // input state
@@ -78,9 +80,7 @@ h2_font_size := h2_height
 ch_width : f64 = 1
 thread_gap     : f64 = 8
 
-default_font   := `'Montserrat'`
-monospace_font := `'Fira Code'`
-icon_font      := `FontAwesome`
+all_fonts: []^SDL_TTF.Font
 
 build_hash := 0
 enable_debug := false
@@ -101,6 +101,18 @@ random_seed     : u64
 // loading / trace state
 loading_config := true
 post_loading := true
+
+// gl-rect nonsense
+idx_pos := []glm.vec2{ 
+	{0.0, 0.0}, 
+	{1.0, 0.0}, 
+	{0.0, 1.0}, 
+	{1.0, 1.0}
+}
+indices := []u16{
+	0, 1, 2,
+	2, 1, 3,
+}
 
 @(cold)
 push_fatal :: proc(err: SpallError) -> ! {
@@ -126,7 +138,6 @@ get_current_window :: proc(cam: Camera, display_width: f64) -> (f64, f64) {
 
 reset_camera :: proc(trace: ^Trace, display_width: f64) {
 	cam = Camera{Vec2{0, 0}, Vec2{0, 0}, 0, 1, 1}
-
 	if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 1000 }
 
 	start_time: f64 = 0
@@ -141,13 +152,41 @@ reset_camera :: proc(trace: ^Trace, display_width: f64) {
 	cam.target_pan_x = cam.pan.x
 }
 
+grab_fonts :: proc(names: []string, sizes: []i32) -> []^SDL_TTF.Font {
+	start_cstr := SDL.GetBasePath()
+	path_str := strings.clone_from_cstring(start_cstr)
+	fonts := make([dynamic]^SDL_TTF.Font)
+
+	for filename in names {
+		full_path := strings.concatenate([]string{path_str, filename})
+		full_path_cstring := strings.clone_to_cstring(full_path)
+		
+		for size in sizes {
+			font := SDL_TTF.OpenFont(full_path_cstring, size)
+			if font == nil {
+				fmt.printf("Failed to open %s @ %d\n", full_path_cstring, size)
+				push_fatal(SpallError.Bug)
+			}
+
+			append(&fonts, font)
+		}
+	}
+
+	return fonts[:]
+}
+
 main :: proc() {
 	orig_window_width: i32 = 1280
 	orig_window_height: i32 = 720
 
-	set_color_mode(false, false)
+	set_color_mode(false, true)
 
 	SDL.Init({.VIDEO})
+	SDL_TTF.Init()
+
+	names := []string{ "Montserrat-Regular.ttf", "FiraMono-Regular.ttf", "fontawesome-webfont.ttf" }
+	sizes := []i32{ 14, 16, 18 }
+	all_fonts = grab_fonts(names, sizes)
 
 	GL_VERSION_MAJOR :: 3
 	GL_VERSION_MINOR :: 3
@@ -187,20 +226,20 @@ main :: proc() {
 		fmt.eprintln("Failed to create rect shader")
 		return
 	}
-	text_program, text_prog_ok := gl.load_shaders_source(rect_vert_src, text_frag_src)
-	if !text_prog_ok {
-		fmt.eprintln("Failed to create text shader")
-		return
-	}
 
 	rect_uniforms := gl.get_uniforms_from_program(rect_program)
-	text_uniforms := gl.get_uniforms_from_program(text_program)
 	gl.UseProgram(rect_program)
 
 	vao: u32
-	gl.GenVertexArrays(1, &vao);
+	gl.GenVertexArrays(1, &vao)
 	gl.BindVertexArray(vao)
 
+	tex: u32
+	gl.GenTextures(1, &tex)
+	gl.BindTexture(gl.TEXTURE_2D, tex)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 4096, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
 
 	// Set up dynamic rect buffer
 	rect_deets_buffer: u32
@@ -220,12 +259,6 @@ main :: proc() {
 	gl.VertexAttribDivisor(u32(VertAttrs.UV), 1)
 
 	// Set up rect points buffer
-	idx_pos := []glm.vec2{ 
-		{0.0, 0.0}, 
-		{1.0, 0.0}, 
-		{0.0, 1.0}, 
-		{1.0, 1.0}
-	}
 	rect_points_buffer: u32
 	gl.GenBuffers(1, &rect_points_buffer)
 	gl.BindBuffer(gl.ARRAY_BUFFER, rect_points_buffer)
@@ -235,10 +268,6 @@ main :: proc() {
 
 
 	// Set up rect index buffer
-	indices := []u16{
-		0, 1, 2,
-		2, 1, 3,
-	}
 	rect_idx_buffer: u32
 	gl.GenBuffers(1, &rect_idx_buffer)
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, rect_idx_buffer)
@@ -342,7 +371,7 @@ main :: proc() {
 					mouse_pos = Vec2{f64(event.button.x), f64(event.button.y)}
 				}
 			case .MOUSEWHEEL:
-				y_dist := f64(event.wheel.preciseY) * 100
+				y_dist := f64(event.wheel.y) * -100
 				if event.wheel.direction == u32(SDL.SDL_MouseWheelDirection.FLIPPED) {
 					y_dist *= -1
 				}
@@ -362,10 +391,9 @@ main :: proc() {
 				start_time := time.tick_now()
 				load_file(&trace, filename)
 				duration := time.tick_since(start_time)
+				fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 
 				post_loading = true
-
-				fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 			}
 		}
 		resize(&rects, 0)

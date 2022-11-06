@@ -23,13 +23,14 @@ uniform vec2  u_resolution;
 out vec4 v_color;
 out vec2 v_uv;
 out vec4 v_rect_pos;
+out vec2 v_idx_pos;
 
 void main() {
 	vec4 rect_pos = in_rect_pos * u_dpr;
 
 	// if line
 	if (uv.y < 0) {
-		float width = uv.x * u_dpr;
+		float width = (uv.x / 2) * u_dpr;
 		vec2 a = rect_pos.xy;
 		vec2 b = rect_pos.zw;
 		vec2 center = mix(a, b, 0.5);
@@ -56,6 +57,7 @@ void main() {
 	v_rect_pos = rect_pos;
 	v_color = color;
 	v_uv = uv;
+	v_idx_pos = idx_pos;
 }
 `
 
@@ -63,10 +65,12 @@ rect_frag_src := `#version 330 core
 in vec4 v_color;
 in vec4 v_rect_pos;
 in vec2 v_uv;
+in vec2 v_idx_pos;
 out vec4 out_color;
 
 uniform float u_dpr;
 uniform vec2  u_resolution;
+uniform sampler2D font_tex;
 
 float sdSegment(vec2 p, vec2 a, vec2 b) {
 	vec2 pa = p-a, ba = b-a;
@@ -75,7 +79,7 @@ float sdSegment(vec2 p, vec2 a, vec2 b) {
 }
 
 float sdOrientedBox(in vec2 p, in vec2 a, in vec2 b, float thick) {
-    float l = length(b - a) + 0.5;
+    float l = length(b - a)+1;
     vec2  d = (b - a) / l;
     vec2  q = p - (a + b) * 0.5;
           q = mat2(d.x, -d.y, d.y, d.x) * q;
@@ -97,20 +101,16 @@ void main() {
 		out_color = vec4(v_color.rgb, v_color.a * alpha);
 
 	// if rect
-	} else {
+	} else if (v_uv.x < 0) {
 		out_color = v_color;
+
+	// if textured rect
+	} else {
+		vec2 scaled_idx = v_idx_pos / 4096;
+		scaled_idx.x *= v_rect_pos.z;
+		scaled_idx.y *= v_rect_pos.w;
+		vec2 uv_pos = scaled_idx;
+		out_color = vec4(v_color.rgb, texture(font_tex, uv_pos).a);
 	}
-}
-`
-
-text_frag_src := `#version 330 core
-uniform sampler2D font_tex;
-
-in vec4 v_color;
-in vec2 v_uv;
-out vec4 out_color;
-
-void main() {
-	out_color = vec4(v_color.rgb, (v_color.a * texture(font_tex, v_uv).r));
 }
 `

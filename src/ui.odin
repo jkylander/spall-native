@@ -18,8 +18,8 @@ prev_line := proc(y: ^f64, h: f64) -> f64 {
 }
 
 tooltip :: proc(rects: ^[dynamic]DrawRect, pos: Vec2, min_x, max_x: f64, text: string) {
-	text_width := measure_text(text, p_font_size, default_font)
-	text_height := get_text_height(p_font_size, default_font)
+	text_width := measure_text(text, .PSize, .DefaultFont)
+	text_height := get_text_height(.PSize, .DefaultFont)
 
 	tooltip_rect := rect(pos.x, pos.y - (em / 2), text_width + em, text_height + (1.25 * em))
 	if tooltip_rect.pos.x + tooltip_rect.size.x > max_x {
@@ -31,18 +31,18 @@ tooltip :: proc(rects: ^[dynamic]DrawRect, pos: Vec2, min_x, max_x: f64, text: s
 
 	draw_rect(rects, tooltip_rect, bg_color)
 	draw_rect_outline(rects, tooltip_rect, 1, line_color)
-	draw_text(text, Vec2{tooltip_rect.pos.x + (em / 2), tooltip_rect.pos.y + (em / 2)}, p_font_size, default_font, text_color)
+	draw_text(rects, text, Vec2{tooltip_rect.pos.x + (em / 2), tooltip_rect.pos.y + (em / 2)}, .PSize, .DefaultFont, text_color)
 }
 
-button :: proc(rects: ^[dynamic]DrawRect, in_rect: Rect, label_text, tooltip_text, font: string, min_x, max_x: f64) -> bool {
+button :: proc(rects: ^[dynamic]DrawRect, in_rect: Rect, label_text, tooltip_text: string, font: FontType, min_x, max_x: f64) -> bool {
 	draw_rect(rects, in_rect, toolbar_button_color)
-	label_width := measure_text(label_text, p_font_size, font)
-	label_height := get_text_height(p_font_size, font)
-	draw_text(label_text, 
+	label_width := measure_text(label_text, .PSize, font)
+	label_height := get_text_height(.PSize, font)
+	draw_text(rects, label_text, 
 		Vec2{
 			in_rect.pos.x + (in_rect.size.x / 2) - (label_width / 2), 
 			in_rect.pos.y + (in_rect.size.y / 2) - (label_height / 2)
-		}, p_font_size, font, toolbar_text_color)
+		}, .PSize, font, toolbar_text_color)
 
 	if pt_in_rect(mouse_pos, in_rect) {
 		set_cursor("pointer")
@@ -136,24 +136,24 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 
 		// Draw Logo
 		logo_text := "spall"
-		logo_width := measure_text(logo_text, h1_font_size, default_font)
-		draw_text(logo_text, Vec2{cursor_x, (toolbar_height / 2) - (h1_height / 2)}, h1_font_size, default_font, toolbar_text_color)
+		logo_width := measure_text(logo_text, .H1Size, .DefaultFont)
+		draw_text(rects, logo_text, Vec2{cursor_x, (toolbar_height / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
 		cursor_x += logo_width + edge_pad
 
 		// Open File
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf07c", "open file", icon_font, 0, width) {
+		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf07c", "open file", .IconFont, 0, width) {
 			open_file_dialog()
 		}
 		cursor_x += button_width + button_pad
 
 		// Reset Camera
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf066", "reset camera", icon_font, 0, width) {
+		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf066", "reset camera", .IconFont, 0, width) {
 			reset_camera(trace, display_width)
 		}
 		cursor_x += button_width + button_pad
 
 		// Process All Events
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf1fe", "get stats for the whole file", icon_font, 0, width) {
+		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf1fe", "get stats for the whole file", .IconFont, 0, width) {
 			stats_state = .Started
 			did_multiselect = true
 			total_tracked_time = 0.0
@@ -175,9 +175,9 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 		}
 		cursor_x += button_width + button_pad
 
-		file_name_width := measure_text(trace.file_name, h1_font_size, default_font)
+		file_name_width := measure_text(trace.file_name, .H1Size, .DefaultFont)
 		name_x := max((display_width / 2) - (file_name_width / 2), cursor_x)
-		draw_text(trace.file_name, Vec2{name_x, (toolbar_height / 2) - (h1_height / 2)}, h1_font_size, default_font, toolbar_text_color)
+		draw_text(rects, trace.file_name, Vec2{name_x, (toolbar_height / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
 
 		// colormode button nonsense
 		color_text : string
@@ -194,7 +194,7 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 			color_text = "\uf111"
 		}
 
-		if button(rects, rect(width - edge_pad - button_width, (toolbar_height / 2) - (button_height / 2), button_width, button_height), color_text, tool_text, icon_font, 0, width) {
+		if button(rects, rect(width - edge_pad - button_width, (toolbar_height / 2) - (button_height / 2), button_width, button_height), color_text, tool_text, .IconFont, 0, width) {
 			new_colormode: ColorMode
 
 			// rotate between auto, dark, and light
@@ -221,7 +221,7 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 			}
 			colormode = new_colormode
 		}
-		if button(rects, rect(width - edge_pad - ((button_width * 2) + (button_pad)), (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf188", "toggle debug mode", icon_font, 0, width) {
+		if button(rects, rect(width - edge_pad - ((button_width * 2) + (button_pad)), (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf188", "toggle debug mode", .IconFont, 0, width) {
 			enable_debug = !enable_debug
 		}
 	}
@@ -232,24 +232,24 @@ draw_debug :: proc(rects: ^[dynamic]DrawRect, width, text_y, x_subpad: f64, grap
 	draw_graph(rects, "FPS", &fps_history, graph_pos)
 
 	hash_str := fmt.tprintf("Build: 0x%X", abs(build_hash))
-	hash_width := measure_text(hash_str, p_font_size, monospace_font)
-	draw_text(hash_str, Vec2{width - hash_width - x_subpad, prev_line(&y, em)}, p_font_size, monospace_font, text_color2)
+	hash_width := measure_text(hash_str, .PSize, .MonoFont)
+	draw_text(rects, hash_str, Vec2{width - hash_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	seed_str := fmt.tprintf("Seed: 0x%X", random_seed)
-	seed_width := measure_text(seed_str, p_font_size, monospace_font)
-	draw_text(seed_str, Vec2{width - seed_width - x_subpad, prev_line(&y, em)}, p_font_size, monospace_font, text_color2)
+	seed_width := measure_text(seed_str, .PSize, .MonoFont)
+	draw_text(rects, seed_str, Vec2{width - seed_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	rects_str := fmt.tprintf("Rect Count: %d", rect_count)
-	rects_txt_width := measure_text(rects_str, p_font_size, monospace_font)
-	draw_text(rects_str, Vec2{width - rects_txt_width - x_subpad, prev_line(&y, em)}, p_font_size, monospace_font, text_color2)
+	rects_txt_width := measure_text(rects_str, .PSize, .MonoFont)
+	draw_text(rects, rects_str, Vec2{width - rects_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	buckets_str := fmt.tprintf("Bucket Count: %d", bucket_count)
-	buckets_txt_width := measure_text(buckets_str, p_font_size, monospace_font)
-	draw_text(buckets_str, Vec2{width - buckets_txt_width - x_subpad, prev_line(&y, em)}, p_font_size, monospace_font, text_color2)
+	buckets_txt_width := measure_text(buckets_str, .PSize, .MonoFont)
+	draw_text(rects, buckets_str, Vec2{width - buckets_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	events_str := fmt.tprintf("Event Count: %d", rect_count - bucket_count)
-	events_txt_width := measure_text(events_str, p_font_size, monospace_font)
-	draw_text(events_str, Vec2{width - events_txt_width - x_subpad, prev_line(&y, em)}, p_font_size, monospace_font, text_color2)
+	events_txt_width := measure_text(events_str, .PSize, .MonoFont)
+	draw_text(rects, events_str, Vec2{width - events_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 }
 
 draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
@@ -275,12 +275,12 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
 		rect_tooltip_stats = fmt.tprintf("%s", tooltip_fmt(duration))
 	}
 
-	text_height := get_text_height(p_font_size, default_font)
-	name_width := measure_text(rect_tooltip_name, p_font_size, default_font)
-	stats_width := measure_text(rect_tooltip_stats, p_font_size, default_font)
+	text_height := get_text_height(.PSize, .DefaultFont)
+	name_width := measure_text(rect_tooltip_name, .PSize, .DefaultFont)
+	stats_width := measure_text(rect_tooltip_stats, .PSize, .DefaultFont)
 
 	args := in_getstr(&trace.string_block, ev.args)
-	args_width := measure_text(args, p_font_size, default_font)
+	args_width := measure_text(args, .PSize, .DefaultFont)
 
 	rect_width := max(name_width + em + stats_width + em, args_width + em)
 	rect_height := text_height + (1.25 * em)
@@ -307,13 +307,13 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
 	cursor_x := tooltip_start_x
 	cursor_y := tooltip_start_y
 
-	draw_text(rect_tooltip_stats, Vec2{cursor_x, cursor_y}, p_font_size, default_font, rect_tooltip_stats_color)
+	draw_text(rects, rect_tooltip_stats, Vec2{cursor_x, cursor_y}, .PSize, .DefaultFont, rect_tooltip_stats_color)
 	cursor_x += (em * 0.35) + stats_width
-	draw_text(rect_tooltip_name, Vec2{cursor_x, cursor_y}, p_font_size, default_font, text_color)
+	draw_text(rects, rect_tooltip_name, Vec2{cursor_x, cursor_y}, .PSize, .DefaultFont, text_color)
 
 	if len(args) > 0 {
 		next_line(&cursor_y, em)
-		draw_text(args, Vec2{tooltip_start_x, cursor_y}, p_font_size, default_font, text_color)
+		draw_text(rects, args, Vec2{tooltip_start_x, cursor_y}, .PSize, .DefaultFont, text_color)
 	}
 }
 
@@ -720,7 +720,7 @@ render_events :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx, d_
 				name_str = fmt.tprintf("%s…", name_str[:len(name_str)-1])
 			}
 
-			draw_text(name_str, Vec2{str_x, dr.pos.y + (height / 2) - (em / 2)}, p_font_size, monospace_font, text_color3)
+			draw_text(rects, name_str, Vec2{str_x, dr.pos.y + (height / 2) - (em / 2)}, .PSize, .MonoFont, text_color3)
 		}
 
 		if pt_in_rect(mouse_pos, graph_rect) && pt_in_rect(mouse_pos, dr) {
@@ -777,7 +777,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 
 			color := (i % subdivisions) != 0 ? subdivision_color : division_color
 
-			draw_rect(rects, rect(start_x + x_off, line_start, 1.5, line_height), BVec4{u8(color.x), u8(color.y), u8(color.z), u8(color.w)})
+			draw_line(rects, Vec2{start_x + x_off, line_start}, Vec2{start_x + x_off, line_start + line_height}, 1, BVec4{u8(color.x), u8(color.y), u8(color.z), u8(color.w)})
 		}
 
 	}
@@ -794,7 +794,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 				} else {
 					row_text = fmt.tprintf("PID: %d", proc_v.process_id)
 				}
-				draw_text(row_text, Vec2{start_x + 5, cur_y}, h1_font_size, default_font, text_color)
+				draw_text(rects, row_text, Vec2{start_x + 5, cur_y}, .H1Size, .DefaultFont, text_color)
 			}
 
 			h1_size = h1_height + (h1_height / 2)
@@ -824,7 +824,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 				} else {
 					row_text = fmt.tprintf("TID: %d", tm.thread_id)
 				}
-				draw_text(row_text, Vec2{start_x + 5, last_cur_y}, h2_font_size, default_font, text_color)
+				draw_text(rects, row_text, Vec2{start_x + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
 			}
 
 			cur_depth_off := 0
@@ -844,8 +844,8 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 		x_off := (tick_time * cam.current_scale) + cam.pan.x
 
 		time_str := time_fmt(tick_time)
-		text_width := measure_text(time_str, p_font_size, default_font)
-		draw_text(time_str, Vec2{start_x + x_off - (text_width / 2), disp_rect.pos.y + (graph_header_text_height / 2) - (em / 3)}, p_font_size, default_font, text_color)
+		text_width := measure_text(time_str, .PSize, .DefaultFont)
+		draw_text(rects, time_str, Vec2{start_x + x_off - (text_width / 2), disp_rect.pos.y + (graph_header_text_height / 2) - (em / 3)}, .PSize, .DefaultFont, text_color)
 	}
 }
 
@@ -960,13 +960,13 @@ draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, width, height, di
 			line_start_y: f64
 			if (i % subdivisions) == 0 {
 				time_str := time_fmt(tick_time)
-				text_width := measure_text(time_str, p_font_size, default_font)
+				text_width := measure_text(time_str, .PSize, .DefaultFont)
 
-				draw_text(time_str, 
+				draw_text(rects, time_str, 
 					Vec2{
 						start_x + x_off - (text_width / 2),
 						toolbar_height + (time_bar_height / 2) - (em / 2)
-					}, p_font_size, default_font, text_color)
+					}, .PSize, .DefaultFont, text_color)
 				line_start_y = toolbar_height + (time_bar_height / 2) - (em / 2) + p_height
 			} else {
 				line_start_y = toolbar_height + (time_bar_height / 2) - (em / 2) + p_height + (p_height / 6)
@@ -999,19 +999,19 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 
 		thread := trace.processes[p_idx].threads[t_idx]
 		event := thread.depths[d_idx].events[e_idx]
-		draw_text(fmt.tprintf("%s", in_getstr(&trace.string_block, event.name)), Vec2{x_subpad, next_line(&y, em)}, p_font_size, monospace_font, text_color)
+		draw_text(rects, fmt.tprintf("%s", in_getstr(&trace.string_block, event.name)), Vec2{x_subpad, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 		if event.args.len > 0 {
-			draw_text(fmt.tprintf(" user data: %s", in_getstr(&trace.string_block, event.args)), Vec2{x_subpad, next_line(&y, em)}, p_font_size, monospace_font, text_color)
+			draw_text(rects, fmt.tprintf(" user data: %s", in_getstr(&trace.string_block, event.args)), Vec2{x_subpad, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 		}
-		draw_text(fmt.tprintf("start time:%s", time_fmt(event.timestamp - trace.total_min_time)), Vec2{x_subpad, next_line(&y, em)}, p_font_size, monospace_font, text_color)
-		draw_text(fmt.tprintf("  duration:%s", time_fmt(bound_duration(event, thread.max_time))), Vec2{x_subpad, next_line(&y, em)}, p_font_size, monospace_font, text_color)
-		draw_text(fmt.tprintf(" self time:%s", time_fmt(event.self_time)), Vec2{x_subpad, next_line(&y, em)}, p_font_size, monospace_font, text_color)
+		draw_text(rects, fmt.tprintf("start time:%s", time_fmt(event.timestamp - trace.total_min_time)), Vec2{x_subpad, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf("  duration:%s", time_fmt(bound_duration(event, thread.max_time))), Vec2{x_subpad, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf(" self time:%s", time_fmt(event.self_time)), Vec2{x_subpad, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 
 	// If we've got stats cooking already
 	} else if stats_state == .Started {
 		y := info_pane_y + top_line_gap
 
-		draw_text("Stats loading...", Vec2{x_subpad, y}, p_font_size, monospace_font, text_color)
+		draw_text(rects, "Stats loading...", Vec2{x_subpad, y}, .PSize, .MonoFont, text_color)
 
 		total_count := 0
 		cur_count := 0
@@ -1028,7 +1028,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 		}
 
 		progress_count := fmt.tprintf("%d of %d", cur_count, total_count)
-		draw_text(progress_count, Vec2{x_subpad, y + em}, p_font_size, monospace_font, text_color)
+		draw_text(rects, progress_count, Vec2{x_subpad, y + em}, .PSize, .MonoFont, text_color)
 
 	// If stats are ready to display
 	} else if stats_state == .Finished && did_multiselect {
@@ -1041,9 +1041,9 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 
 		cursor := x_subpad
 
-		text_outf :: proc(cursor: ^f64, y: f64, str: string, color := text_color) {
-			width := measure_text(str, p_font_size, monospace_font)
-			draw_text(str, Vec2{cursor^, y}, p_font_size, monospace_font, color)
+		text_outf :: proc(rects: ^[dynamic]DrawRect, cursor: ^f64, y: f64, str: string, color := text_color) {
+			width := measure_text(str, .PSize, .MonoFont)
+			draw_text(rects, str, Vec2{cursor^, y}, .PSize, .MonoFont, color)
 			cursor^ += width
 		}
 
@@ -1091,20 +1091,20 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			avg_text := fmt.tprintf("%10s", stat_fmt(stat.avg_time))
 			max_text := fmt.tprintf("%10s", stat_fmt(stat.max_time))
 
-			text_outf(&cursor, y, self_text, text_color2);   cursor += column_gap
+			text_outf(rects, &cursor, y, self_text, text_color2);   cursor += column_gap
 			{
-				full_perc_width := measure_text(total_perc_text, p_font_size, monospace_font)
+				full_perc_width := measure_text(total_perc_text, .PSize, .MonoFont)
 				perc_width := (ch_width * 6) - full_perc_width
 
-				text_outf(&cursor, y, total_text, text_color2); cursor += ch_width
+				text_outf(rects, &cursor, y, total_text, text_color2); cursor += ch_width
 				cursor += perc_width
-				draw_text(total_perc_text, Vec2{cursor, y}, p_font_size, monospace_font, text_color2); cursor += column_gap + full_perc_width
+				draw_text(rects, total_perc_text, Vec2{cursor, y}, .PSize, .MonoFont, text_color2); cursor += column_gap + full_perc_width
 			}
 
 
-			text_outf(&cursor, y, min_text, text_color2);   cursor += column_gap
-			text_outf(&cursor, y, avg_text, text_color2);   cursor += column_gap
-			text_outf(&cursor, y, max_text, text_color2);   cursor += column_gap
+			text_outf(rects, &cursor, y, min_text, text_color2);   cursor += column_gap
+			text_outf(rects, &cursor, y, avg_text, text_color2);   cursor += column_gap
+			text_outf(rects, &cursor, y, max_text, text_color2);   cursor += column_gap
 
 			y_before   := y - (em / 2)
 			y_after    := y_before
@@ -1114,10 +1114,10 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			dr := rect(cursor, y_before, (display_width - cursor - column_gap) * stat.total_time / full_time, y_after - y_before)
 			cursor += column_gap / 2
 
-			name_width := measure_text(name, p_font_size, monospace_font)
+			name_width := measure_text(name, .PSize, .MonoFont)
 			tmp_color := trace.color_choices[name_color_idx(trace, name)]
 			draw_rect(rects, dr, BVec4{u8(tmp_color.x), u8(tmp_color.y), u8(tmp_color.z), 255})
-			draw_text(name, Vec2{cursor, y_before + (em / 3)}, p_font_size, monospace_font, text_color)
+			draw_text(rects, name, Vec2{cursor, y_before + (em / 3)}, .PSize, .MonoFont, text_color)
 
 			next_line(&y, em)
 		}
@@ -1132,16 +1132,16 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			start_x := cursor^
 			cursor^ += (column_gap / 2)
 
-			width := measure_text(text, p_font_size, monospace_font)
-			draw_text(text, Vec2{cursor^, text_y}, p_font_size, monospace_font, text_color)
+			width := measure_text(text, .PSize, .MonoFont)
+			draw_text(rects, text, Vec2{cursor^, text_y}, .PSize, .MonoFont, text_color)
 			cursor^ += width + (column_gap / 2)
 			end_x := cursor^
 
 			if stat_sort_type == sort_type {
 				arrow_icon := stat_sort_descending ? "\uf0dd" : "\uf0de"
-				arrow_height := get_text_height(p_font_size, icon_font)
-				arrow_width := measure_text(arrow_icon, p_font_size, icon_font)
-				draw_text(arrow_icon, Vec2{end_x - arrow_width - (column_gap / 2), rect_y + (em) - (arrow_height / 2)}, p_font_size, icon_font, text_color)
+				arrow_height := get_text_height(.PSize, .IconFont)
+				arrow_width := measure_text(arrow_icon, .PSize, .IconFont)
+				draw_text(rects, arrow_icon, Vec2{end_x - arrow_width - (column_gap / 2), rect_y + (em) - (arrow_height / 2)}, .PSize, .IconFont, text_color)
 			}
 
 			draw_line(rects, Vec2{cursor^, rect_y}, Vec2{cursor^, rect_y + pane_h}, 1, subbar_split_color)
@@ -1178,12 +1178,12 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, max_header_text, .MaxTime)
 
 		name_header_text   := fmt.tprintf("%-10s", "   name")
-		text_outf(&cursor, y, name_header_text, text_color)
+		text_outf(rects, &cursor, y, name_header_text, text_color)
 	} else {
 		y := height - em - top_line_gap
 
-		draw_text("Shift-click and drag to get stats for multiple rectangles", Vec2{x_subpad, prev_line(&y, em)}, p_font_size, default_font, text_color)
-		draw_text("Click on a rectangle to inspect", Vec2{x_subpad, prev_line(&y, em)}, p_font_size, default_font, text_color)
+		draw_text(rects, "Shift-click and drag to get stats for multiple rectangles", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
+		draw_text(rects, "Click on a rectangle to inspect", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
 	}
 }
 
@@ -1264,7 +1264,7 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 
 		// draw multiselect timerange
 		width_text := measure_fmt(selected_end_time - selected_start_time)
-		width_text_width := measure_text(width_text, p_font_size, monospace_font) + em
+		width_text_width := measure_text(width_text, .PSize, .MonoFont) + em
 
 		text_bg_rect := flopped_rect
 		text_bg_rect.pos.x = text_bg_rect.pos.x + (text_bg_rect.size.x / 2) - (width_text_width / 2)
@@ -1275,14 +1275,14 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 		if flopped_rect.size.x > text_bg_rect.size.x {
 			multiselect_color.w = 180
 			draw_rect(rects, text_bg_rect, multiselect_color)
-			draw_text(
+			draw_text(rects,
 				width_text, 
 				Vec2{
 					text_bg_rect.pos.x + (em / 2), 
 					text_bg_rect.pos.y + (p_height / 2)
 				}, 
-				p_font_size,
-				monospace_font,
+				.PSize,
+				.MonoFont,
 				BVec4{255, 255, 255, 255},
 			)
 		}

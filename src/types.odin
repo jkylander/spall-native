@@ -22,6 +22,19 @@ DrawRect :: struct #packed {
 	uv: FVec2,
 }
 
+FontSize :: enum u8 {
+	PSize = 0,
+	H1Size,
+	H2Size,
+	LastSize,
+}
+FontType :: enum u8 {
+	DefaultFont = 0,
+	MonoFont,
+	IconFont,
+	LastFont,
+}
+
 SpallError :: enum int {
 	NoError = 0,
 	OutOfMemory = 1,
