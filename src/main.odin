@@ -168,7 +168,7 @@ grab_fonts :: proc(names: []string, sizes: []f64) -> []^SDL_TTF.Font {
 				push_fatal(SpallError.Bug)
 			}
 
-			SDL_TTF.SetFontHinting(font, SDL_TTF.HINTING_MONO)
+			SDL_TTF.SetFontHinting(font, SDL_TTF.HINTING_NORMAL)
 			append(&fonts, font)
 		}
 	}
@@ -196,9 +196,9 @@ main :: proc() {
 	SDL.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, GL_VERSION_MAJOR)
 	SDL.GL_SetAttribute(.CONTEXT_MINOR_VERSION, GL_VERSION_MINOR)
 
-	SDL.GL_SetSwapInterval(1)
+	SDL.GL_SetSwapInterval(-1)
 	SDL.GL_SetAttribute(.MULTISAMPLEBUFFERS, 1)
-	SDL.GL_SetAttribute(.MULTISAMPLESAMPLES, 16)
+	SDL.GL_SetAttribute(.MULTISAMPLESAMPLES, 8)
 
 	SDL.SetHint(SDL.HINT_MOUSE_FOCUS_CLICKTHROUGH, "1")
 
@@ -241,8 +241,8 @@ main :: proc() {
 	tex: u32
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 4096, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)

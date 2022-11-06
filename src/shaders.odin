@@ -110,7 +110,7 @@ void main() {
 		scaled_idx.x *= v_rect_pos.z;
 		scaled_idx.y *= v_rect_pos.w;
 		vec2 uv_pos = scaled_idx;
-		out_color = vec4(v_color.rgb, texture(font_tex, uv_pos).a);
+		out_color = vec4(v_color.rgb, v_color.a * texture(font_tex, uv_pos).a);
 	}
 }
 `

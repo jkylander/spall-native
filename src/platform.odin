@@ -2,6 +2,7 @@ package main
 
 import "core:strings"
 import "core:fmt"
+import "core:math"
 
 import SDL "vendor:sdl2"
 import SDL_TTF "vendor:sdl2/ttf"
@@ -96,8 +97,8 @@ draw_text    :: proc(rects: ^[dynamic]DrawRect, str: string, pos: Vec2, scale: F
 
 	gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, (surface.pitch / 4), surface.h, gl.RGBA, gl.UNSIGNED_BYTE, surface.pixels)
 
-	x_pos := i32(pos.x)
-	y_pos := i32(pos.y)
+	x_pos := i32(math.round(pos.x))
+	y_pos := i32(math.round(pos.y))
 	append(rects, DrawRect{FVec4{f32(x_pos), f32(y_pos), f32(surface.w), f32(surface.h)}, color, FVec2{0.0, 0.0}})
 	
 	// flush. RIP
