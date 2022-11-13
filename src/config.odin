@@ -4,6 +4,8 @@ import "core:os"
 import "core:fmt"
 import "core:slice"
 import "core:time"
+import "core:path/filepath"
+
 import "formats:spall"
 
 FileType :: enum {
@@ -331,9 +333,8 @@ pid_sort_proc :: proc(a, b: Process) -> bool { return a.min_time < b.min_time }
 tid_sort_proc :: proc(a, b: Thread) -> bool  { return a.min_time < b.min_time }
 load_file :: proc(trace: ^Trace, file_name: string) {
 	start_time := time.tick_now()
-	trace.file_name = file_name
 
-	trace_fd, err := os.open(trace.file_name)
+	trace_fd, err := os.open(file_name)
 	if err != 0 {
 		push_fatal(SpallError.InvalidFile)
 	}
@@ -351,6 +352,7 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		total_min_time = 0x7fefffffffffffff,
 		event_count = 0,
 		stamp_scale = 1,
+		file_name = filepath.base(file_name),
 		string_block = make([dynamic]u8),
 		parser = init_parser(),
 	}
@@ -364,6 +366,7 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	if err3 != 0 {
 		push_fatal(SpallError.InvalidFile)
 	}
+	trace.total_size = total_size
 
 	// parse header
 	full_chunk := chunk_buffer[:rd_sz]

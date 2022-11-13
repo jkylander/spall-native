@@ -11,6 +11,7 @@ import "core:runtime"
 import "core:slice"
 import "core:container/queue"
 import "core:container/lru"
+import "core:thread"
 
 import glm "core:math/linalg/glsl"
 
@@ -102,7 +103,8 @@ was_sleeping    : bool
 random_seed     : u64
 
 // loading / trace state
-loading_config := true
+start_trace := ""
+loading_config := false
 post_loading := true
 
 // gl-rect nonsense
@@ -179,7 +181,36 @@ grab_fonts :: proc(names: []string, sizes: []f64) -> []^SDL_TTF.Font {
 	return fonts[:]
 }
 
+ThreadState :: struct {
+	filename: string,
+	trace: ^Trace,
+}
+
+threaded_config_load :: proc(data: rawptr) {
+	state := cast(^ThreadState)(data)
+	
+	trace := state.trace
+	filename := state.filename
+	free(state)
+
+	start_time := time.tick_now()
+	load_file(trace, filename)
+	duration := time.tick_since(start_time)
+
+	fmt.printf("Loaded %s\n", trace.file_name)
+	fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
+
+	loading_config = false
+	post_loading = true
+}
+
 main :: proc() {
+
+	// If the user passed us a trace, save off the filename now
+	if len(os.args) == 2 {
+		start_trace = strings.clone(os.args[1])
+	}
+
 	orig_window_width: i32 = 1280
 	orig_window_height: i32 = 720
 
@@ -396,20 +427,31 @@ main :: proc() {
 					height = f64(event.window.data2)
 				}
 			case .DROPFILE:
-				filename := strings.clone_from_cstring(event.drop.file)
+				start_trace = strings.clone_from_cstring(event.drop.file)
 				SDL.free(rawptr(event.drop.file))
-
-				free_trace(&trace)
-				mem.zero(&trace, size_of(Trace))
-				start_time := time.tick_now()
-				load_file(&trace, filename)
-				duration := time.tick_since(start_time)
-				fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
-
-				post_loading = true
 			}
 		}
+
 		resize(&rects, 0)
+		gl.Viewport(0, 0, i32(width * dpr), i32(height * dpr))
+		gl.Uniform1f(rect_uniforms["u_dpr"].location, f32(dpr))
+		gl.Uniform2f(rect_uniforms["u_resolution"].location, f32(width * dpr), f32(height * dpr))
+		gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
+		gl.BindVertexArray(vao);
+
+		if start_trace != "" && !loading_config {
+			free_trace(&trace)
+			trace = Trace{}
+			loading_config = true
+
+			state := new(ThreadState)
+			state^ = ThreadState{
+				filename = start_trace,
+				trace = &trace,
+			}
+			start_trace = ""
+			thread.create_and_start_with_data(state, threaded_config_load)
+		}
 
 		gl.ClearColor(
 			f32(bg_color2.x) / 255,
@@ -419,11 +461,46 @@ main :: proc() {
 		)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
-		gl.Viewport(0, 0, i32(width * dpr), i32(height * dpr))
-		gl.Uniform1f(rect_uniforms["u_dpr"].location, f32(dpr))
-		gl.Uniform2f(rect_uniforms["u_resolution"].location, f32(width * dpr), f32(height * dpr))
-		gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
-		gl.BindVertexArray(vao);
+		if loading_config {
+			offset := trace.parser.offset
+			size := trace.total_size
+
+			pad_size : f64 = 4
+			chunk_size : f64 = 10
+
+			load_box := rect(0, 0, 100, 100)
+			load_box = rect(
+				(width / 2) - (load_box.size.x / 2) - pad_size, 
+				(height / 2) - (load_box.size.y / 2) - pad_size, 
+				load_box.size.x + pad_size, 
+				load_box.size.y + pad_size
+			)
+
+			draw_rect(&rects, load_box, BVec4{30, 30, 30, 255})
+			chunk_count := int(rescale(f64(offset), 0, f64(size), 0, 100))
+
+			chunk := rect(0, 0, chunk_size, chunk_size)
+			start_x := load_box.pos.x + pad_size
+			start_y := load_box.pos.y + pad_size
+			for i := chunk_count; i >= 0; i -= 1 {
+				cur_x := f64(i %% int(chunk_size))
+				cur_y := f64(i /  int(chunk_size))
+				draw_rect(&rects, rect(
+					start_x + (cur_x * chunk_size), 
+					start_y + (cur_y * chunk_size), 
+					chunk_size - pad_size, 
+					chunk_size - pad_size
+				), loading_block_color)
+			}
+
+			gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
+			gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
+
+			SDL.GL_SwapWindow(window)
+			continue
+		}
+
+
 
 		// Start the drawing madness
 		rect_height := em + (0.75 * em)
