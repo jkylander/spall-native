@@ -63,11 +63,11 @@ default_colors :: proc "contextless" (is_dark: bool) {
 		division_color    = BVec4{100, 100, 100, 255}
 		xbar_color        = BVec4{180, 180, 180, 255}
 
-		rect_tooltip_stats_color = BVec4{150, 255, 150, 255}
+		rect_tooltip_stats_color = BVec4{80, 255, 80, 255}
 	} else {
 		bg_color         = BVec4{254, 252, 248, 255}
 		bg_color2        = BVec4{255, 255, 255, 255}
-		text_color       = BVec4{0,     0,   0, 255}
+		text_color       = BVec4{20,   20,  20, 255}
 		text_color2      = BVec4{80,   80,  80, 255}
 		text_color3      = BVec4{0,     0,   0, 255}
 		line_color       = BVec4{200, 200, 200, 255}
@@ -80,16 +80,16 @@ default_colors :: proc "contextless" (is_dark: bool) {
 		toolbar_text_color   = BVec4{0xF5, 0xF5, 0xF5, 255}
 
 		graph_color      = BVec4{69,   49,  34, 255}
-		highlight_color  = BVec4{255, 255,   0,  32}
+		highlight_color  = BVec4{255, 255,   0,  64}
 		wide_rect_color  = BVec4{  0, 255,   0,   0}
 		wide_bg_color    = BVec4{  0,  0,    0, 255}
-		shadow_color     = BVec4{  0,   0,   0,  15}
+		shadow_color     = BVec4{  0,   0,   0,  30}
 
 		subdivision_color = BVec4{230, 230, 230, 255}
 		division_color    = BVec4{180, 180, 180, 255}
 		xbar_color        = BVec4{ 80,  80,  80, 255}
 
-		rect_tooltip_stats_color = BVec4{20, 130, 20, 255}
+		rect_tooltip_stats_color = BVec4{20, 60, 20, 255}
 	}
 }
 
