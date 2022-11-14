@@ -199,8 +199,6 @@ threaded_config_load :: proc(data: rawptr) {
 	start_time := time.tick_now()
 	load_file(trace, filename)
 	duration := time.tick_since(start_time)
-
-	fmt.printf("Loaded %s\n", trace.file_name)
 	fmt.printf("runtime: %f ms, got %d events\n", time.duration_milliseconds(duration), trace.event_count)
 
 	loading_config = false
@@ -644,6 +642,8 @@ main :: proc() {
 		gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
 		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
 
+		gl.Finish()
 		SDL.GL_SwapWindow(window)
+		gl.Finish()
 	}
 }
