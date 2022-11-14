@@ -374,9 +374,9 @@ render_widetree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx: 
 
 		// draw summary faketangle
 		min_width := 2.0 
-		if range_width < min_width {
+		if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
 			x := cur_node.start_time
-			w := min_width
+			w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
 			xm := x * scale
 
 			r_x   := x * scale
@@ -462,9 +462,9 @@ render_minitree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid: int,
 
 		// draw summary faketangle
 		min_width := 2.0 
-		if range_width < min_width {
+		if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
 			x := cur_node.start_time
-			w := min_width
+			w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
 			xm := x * scale
 
 			r_x   := x * scale
