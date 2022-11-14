@@ -566,6 +566,11 @@ main :: proc() {
 		if post_loading {
 			if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 1000 }
 			reset_camera(trace, display_width)
+
+			if trace.file_name != "" {
+				name := fmt.ctprintf("%s - spall", trace.base_name)
+				SDL.SetWindowTitle(window, name)
+			}
 			post_loading = false
 		}
 
