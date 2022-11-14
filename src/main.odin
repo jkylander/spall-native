@@ -22,10 +22,6 @@ import SDL_TTF "vendor:sdl2/ttf"
 
 import "formats:spall"
 
-when ODIN_OS == .Windows {
-	import Windows "core:sys/windows"
-}
-
 // input state
 is_mouse_down  := false
 was_mouse_down := false
@@ -247,11 +243,7 @@ main :: proc() {
 
 	gl_context := SDL.GL_CreateContext(window)
 	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, SDL.gl_set_proc_address)
-	when ODIN_OS == .Windows {
-		SDL.GL_SetSwapInterval(1)
-	} else {
-		SDL.GL_SetSwapInterval(-1)
-	}
+	SDL.GL_SetSwapInterval(-1)
 
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
@@ -655,10 +647,8 @@ main :: proc() {
 		gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
 		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
 
+		gl.Finish()
 		SDL.GL_SwapWindow(window)
-		when ODIN_OS == .Windows {
-			Windows.DwmFlush()
-		}
-
+		gl.Finish()
 	}
 }
