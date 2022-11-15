@@ -137,8 +137,8 @@ draw_text :: proc(rects: ^[dynamic]DrawRect, str: string, pos: Vec2, scale: Font
 	text_blob := get_text_cache(str, scale, font_type)
 	gl.BindTexture(gl.TEXTURE_2D, text_blob.handle)
 
-	x_pos := f32(i32(math.round(pos.x)))
-	y_pos := f32(i32(math.round(pos.y)))
+	x_pos := f32(math.round(pos.x))
+	y_pos := f32(math.round(pos.y))
 	w := f32(f64(text_blob.width) / dpr)
 	h := f32(f64(text_blob.height) / dpr)
 	append(rects, DrawRect{FVec4{x_pos, y_pos, w, h}, color, FVec2{0.0, 0.0}})
@@ -149,8 +149,8 @@ batch_text :: proc(text_rects: ^[dynamic]TextRect, str: string, pos: Vec2, scale
 		return
 	}
 
-	x_pos := f32(i32(math.round(pos.x)))
-	y_pos := f32(i32(math.round(pos.y)))
+	x_pos := f32(math.round(pos.x))
+	y_pos := f32(math.round(pos.y))
 	append(text_rects, TextRect{
 		str = strings.clone(str),
 		scale = scale,

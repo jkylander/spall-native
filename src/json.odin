@@ -375,8 +375,7 @@ skip_to_start_or_end :: proc(trace: ^Trace, chunk: []u8) -> JSONState {
 		}
 	}
 
-	fmt.printf("Unable to find next event! %c\n", ch)
-	push_fatal(SpallError.InvalidFile)
+	return .PartialRead
 }
 
 process_key_value :: proc(trace: ^Trace, ev: ^TempEvent, key: FieldType, value: string) #no_bounds_check {
@@ -661,6 +660,9 @@ process_event :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) {
 			jev.self_time = jev.duration
 			thread.max_time = max(thread.max_time, jev.timestamp + jev.duration)
 			trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
+		} else {
+			fmt.printf("You've sent one too many ends!\n")
+			push_fatal(SpallError.InvalidFile)
 		}
 	case .Sample:
 		process_sample(trace, jp, ev)
@@ -731,7 +733,7 @@ process_next_json_event :: proc(trace: ^Trace, jp: ^JSONParser, chunk: []u8) -> 
 		next_state := dfa[jp.state][class]
 		jp.state = next_state
 
-		if next_state != .String && in_string {
+		if next_state != .String && next_state != .Escape && in_string {
 			str := string(chunk[str_start:chunk_pos(p)])
 			if depth_count == 1 {
 				if in_key {
