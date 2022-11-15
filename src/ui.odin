@@ -577,7 +577,7 @@ render_minievents :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, scan_arr: []
 	}
 }
 
-render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int, y_start, height, start_time, end_time: f64) {
+render_tree :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, pid, tid, did: int, y_start, height, start_time, end_time: f64) {
 	thread := trace.processes[pid].threads[tid]
 	depth := thread.depths[did]
 	tree := depth.tree
@@ -662,7 +662,7 @@ render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int
 
 		// we're at a bottom node, draw the whole thing
 		if cur_node.child_count == 0 {
-			render_events(rects, trace, 
+			render_events(rects, text_rects, trace, 
 				pid, tid, did, depth.events[:], cur_node.start_idx, cur_node.arr_len, y_start, height, found_rid)
 			continue
 		}
@@ -673,7 +673,7 @@ render_tree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid, did: int
 	}
 }
 
-render_events :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx, d_idx: int, events: []Event, start_idx: uint, arr_len: i8, y_start, height: f64, found_rid: int) {
+render_events :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, p_idx, t_idx, d_idx: int, events: []Event, start_idx: uint, arr_len: i8, y_start, height: f64, found_rid: int) {
 	thread := trace.processes[p_idx].threads[t_idx]
 	scan_arr := events[start_idx:start_idx+uint(arr_len)]
 	y := height * f64(d_idx)
@@ -759,7 +759,7 @@ render_events :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx, d_
 				name_str = fmt.tprintf("%s…", name_str[:len(name_str)-1])
 			}
 
-			draw_text(rects, name_str, Vec2{str_x, dr.pos.y + (height / 2) - (em / 2)}, .PSize, .MonoFont, text_color3)
+			batch_text(text_rects, name_str, Vec2{str_x, dr.pos.y + (height / 2) - (em / 2)}, .PSize, .MonoFont, text_color3)
 		}
 
 		if pt_in_rect(mouse_pos, graph_rect) && pt_in_rect(mouse_pos, dr) {
@@ -780,7 +780,7 @@ render_events :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx, d_
 	}
 }
 
-draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, end_time, start_x, rect_height, info_pane_y, graph_header_height, graph_header_text_height, top_line_gap, display_width: f64) {
+draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, start_time, end_time, start_x, rect_height, info_pane_y, graph_header_height, graph_header_text_height, top_line_gap, display_width: f64) {
 	// graph-relative timebar and subdivisions
 	division, draw_tick_start: f64
 	ticks: int
@@ -820,6 +820,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 		}
 
 	}
+	flush_rects(rects)
 
 	// graph
 	cur_y := padded_graph_rect.pos.y - cam.pan.y
@@ -833,7 +834,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 				} else {
 					row_text = fmt.tprintf("PID: %d", proc_v.process_id)
 				}
-				draw_text(rects, row_text, Vec2{start_x + 5, cur_y}, .H1Size, .DefaultFont, text_color)
+				batch_text(text_rects, row_text, Vec2{start_x + 5, cur_y}, .H1Size, .DefaultFont, text_color)
 			}
 
 			h1_size = h1_height + (h1_height / 2)
@@ -863,16 +864,18 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, e
 				} else {
 					row_text = fmt.tprintf("TID: %d", tm.thread_id)
 				}
-				draw_text(rects, row_text, Vec2{start_x + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
+				batch_text(text_rects, row_text, Vec2{start_x + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
 			}
 
 			cur_depth_off := 0
 			for depth, d_idx in &tm.depths {
-				render_tree(rects, trace, p_idx, t_idx, d_idx, cur_y, rect_height, start_time, end_time)
+				render_tree(rects, text_rects, trace, p_idx, t_idx, d_idx, cur_y, rect_height, start_time, end_time)
 			}
 			cur_y += thread_advance
 		}
 	}
+	flush_rects(rects)
+	flush_text_batch(text_rects)
 
 	// relative time back-cover
 	draw_rect(rects, rect(start_x, disp_rect.pos.y, display_width, graph_header_text_height), bg_color)

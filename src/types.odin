@@ -21,6 +21,14 @@ DrawRect :: struct #packed {
 	color: BVec4,
 	uv: FVec2,
 }
+TextRect :: struct {
+	str: string,
+	scale: FontSize,
+	type: FontType,
+	pos: FVec2,
+	color: BVec4,
+}
+TextRectArr :: [dynamic]TextRect
 
 FontSize :: enum u8 {
 	PSize = 0,

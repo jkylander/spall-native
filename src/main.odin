@@ -227,7 +227,7 @@ main :: proc() {
 	SDL.GL_SetAttribute(.CONTEXT_MINOR_VERSION, GL_VERSION_MINOR)
 
 	SDL.GL_SetAttribute(.MULTISAMPLEBUFFERS, 1)
-	SDL.GL_SetAttribute(.MULTISAMPLESAMPLES, 8)
+	SDL.GL_SetAttribute(.MULTISAMPLESAMPLES, 2)
 	SDL.GL_SetAttribute(SDL.GLattr.FRAMEBUFFER_SRGB_CAPABLE, 1)
 
 	SDL.SetHint(SDL.HINT_MOUSE_FOCUS_CLICKTHROUGH, "1")
@@ -322,6 +322,7 @@ main :: proc() {
 	
 	trace := new(Trace)
 	rects := make([dynamic]DrawRect)
+	text_rects := make([dynamic]TextRect)
 
 	start_tick := time.tick_now()
 	last_tick: time.Tick
@@ -457,7 +458,6 @@ main :: proc() {
 			height = f64(ih)
 		}
 
-		resize(&rects, 0)
 		gl.Viewport(0, 0, i32(width * dpr), i32(height * dpr))
 		gl.Uniform1f(rect_uniforms["u_dpr"].location, f32(dpr))
 		gl.Uniform2f(rect_uniforms["u_resolution"].location, f32(width * dpr), f32(height * dpr))
@@ -601,7 +601,7 @@ main :: proc() {
 		rect_count = 0
 		bucket_count = 0
 
-		draw_flamegraphs(&rects, trace,
+		draw_flamegraphs(&rects, &text_rects, trace,
 			start_time, end_time, start_x, rect_height, info_pane_y,
 			graph_header_height, graph_header_text_height, top_line_gap, display_width)
  
@@ -644,8 +644,7 @@ main :: proc() {
 		}
 
 		// Phew... Ok, time to dump to the screen
-		gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects), gl.DYNAMIC_DRAW)
-		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
+		flush_rects(&rects)
 
 		gl.Finish()
 		SDL.GL_SwapWindow(window)

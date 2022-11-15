@@ -137,11 +137,46 @@ draw_text :: proc(rects: ^[dynamic]DrawRect, str: string, pos: Vec2, scale: Font
 	text_blob := get_text_cache(str, scale, font_type)
 	gl.BindTexture(gl.TEXTURE_2D, text_blob.handle)
 
-	x_pos := i32(math.round(pos.x))
-	y_pos := i32(math.round(pos.y))
-	append(rects, DrawRect{FVec4{f32(x_pos), f32(y_pos), f32(f64(text_blob.width) / dpr), f32(f64(text_blob.height) / dpr)}, color, FVec2{0.0, 0.0}})
-	
-	// flush. RIP
+	x_pos := f32(i32(math.round(pos.x)))
+	y_pos := f32(i32(math.round(pos.y)))
+	w := f32(f64(text_blob.width) / dpr)
+	h := f32(f64(text_blob.height) / dpr)
+	append(rects, DrawRect{FVec4{x_pos, y_pos, w, h}, color, FVec2{0.0, 0.0}})
+	flush_rects(rects)
+}
+batch_text :: proc(text_rects: ^[dynamic]TextRect, str: string, pos: Vec2, scale: FontSize, font_type: FontType, color: BVec4) {
+	if len(str) == 0 {
+		return
+	}
+
+	x_pos := f32(i32(math.round(pos.x)))
+	y_pos := f32(i32(math.round(pos.y)))
+	append(text_rects, TextRect{
+		str = strings.clone(str),
+		scale = scale,
+		type = font_type,
+		pos = FVec2{x_pos, y_pos},
+		color = color,
+	})
+}
+
+flush_text_batch :: proc(text_rects: ^[dynamic]TextRect) {
+	for rect in text_rects {
+		text_blob := get_text_cache(rect.str, rect.scale, rect.type)
+		gl.BindTexture(gl.TEXTURE_2D, text_blob.handle)
+
+		w := f32(f64(text_blob.width) / dpr)
+		h := f32(f64(text_blob.height) / dpr)
+		draw_rect := DrawRect{FVec4{rect.pos.x, rect.pos.y, w, h}, rect.color, FVec2{0.0, 0.0}}
+		gl.BufferData(gl.ARRAY_BUFFER, size_of(draw_rect), &draw_rect, gl.DYNAMIC_DRAW)
+		gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, 1)
+		delete(rect.str)
+	}
+
+	resize(text_rects, 0)
+}
+
+flush_rects :: proc(rects: ^[dynamic]DrawRect) {
 	gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects[:]), gl.DYNAMIC_DRAW)
 	gl.DrawElementsInstanced(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil, i32(len(rects)))
 	resize(rects, 0)
