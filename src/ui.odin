@@ -81,7 +81,7 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 	graph_y_bounds := graph_size - (graph_edge_pad * 2)
 	graph_x_bounds := graph_size - graph_edge_pad
 
-	text_x_overhead := 100.0
+	text_x_overhead := 6 * em
 	graph_overdraw_rect := rect(pos.x - text_x_overhead, pos.y - line_gap, graph_size + text_x_overhead + (em / 2), ((em + line_gap) * 2) + graph_size + (em / 2) + line_gap)
 
 	// reset mouse if we're in the graph
@@ -96,9 +96,11 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 	draw_rect(rects, rect(pos.x, graph_top, graph_size, graph_size), bg_color2)
 	draw_rect_outline(rects, rect(pos.x, graph_top, graph_size, graph_size), 2, outline_color)
 
-	text_width := measure_text(header, .PSize, .DefaultFont)
-	center_offset := (graph_size / 2) - (text_width / 2)
-	draw_text(rects, header, Vec2{pos.x + center_offset, pos.y}, .PSize, .DefaultFont, text_color)
+	header_str := trunc_string(header, (em / 2), graph_size)
+
+	text_render_width := measure_text(header_str, .PSize, .DefaultFont)
+	center_offset := (graph_size / 2) - (text_render_width / 2)
+	draw_text(rects, header_str, Vec2{pos.x + center_offset, pos.y}, .PSize, .MonoFont, text_color)
 
 	high_height := graph_top + graph_edge_pad - (em / 2)
 	low_height := graph_bottom - graph_edge_pad - (em / 2)
@@ -117,7 +119,7 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 			cur_x_height := math.lerp(low_height, high_height, cur_perc)
 
 			strings.builder_reset(&b)
-			my_write_float(&b, cur_x_val, 3)
+			my_write_float(&b, cur_x_val, 0)
 			cur_x_str := strings.to_string(b)
 			cur_x_width := measure_text(cur_x_str, .PSize, .DefaultFont) + line_gap
 			draw_text(rects, cur_x_str, Vec2{(pos.x - 5) - cur_x_width, cur_x_height}, .PSize, .DefaultFont, text_color)
@@ -143,7 +145,6 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 	last_x : f64 = 0
 	last_y : f64 = 0
 	for entry, i in temp_history {
-
 		point_x_offset : f64 = 0
 		if len(temp_history) != 0 {
 			point_x_offset = f64(i) * (graph_x_bounds / f64(len(temp_history)))
@@ -862,6 +863,7 @@ render_events :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect,
 		if ev.duration == -1 {
 			display_name = fmt.tprintf("%s (Did Not Finish)", ev_name)
 		}
+
 		text_pad := (em / 2)
 		text_width := int(math.floor((disp_w - (text_pad * 2)) / ch_width))
 		max_chars := max(0, min(len(display_name), text_width))
@@ -1318,7 +1320,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 		}
 
 		if selected_func.start != -1 {
-			histogram_height := 250.0
+			histogram_height := 18 * em
 			line_gap := (em / 1.5)
 			edge_gap := (em / 2)
 			pos := Vec2{

@@ -300,3 +300,14 @@ distance :: proc(p1, p2: Vec2) -> f64 {
 geomean :: proc(a, b: f64) -> f64 {
 	return math.sqrt(a * b)
 }
+
+trunc_string :: proc(str: string, pad, max_width: f64) -> string {
+	text_width := int(math.floor((max_width - (pad * 2)) / ch_width))
+	max_chars := max(0, min(len(str), text_width))
+	chopped_str := str[:max_chars]
+	if max_chars != len(str) {
+		chopped_str = fmt.tprintf("%s…", chopped_str[:len(chopped_str)-1])
+	}
+
+	return chopped_str
+}
