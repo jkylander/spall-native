@@ -75,14 +75,30 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 	}
 	max_range := max_val - min_val
 
+	graph_top := pos.y + em + line_gap
+	graph_bottom := graph_top + graph_size
+
+	graph_y_bounds := graph_size - (graph_edge_pad * 2)
+	graph_x_bounds := graph_size - graph_edge_pad
+
+	text_x_overhead := 100.0
+	graph_overdraw_rect := rect(pos.x - text_x_overhead, pos.y - line_gap, graph_size + text_x_overhead + (em / 2), ((em + line_gap) * 2) + graph_size + (em / 2) + line_gap)
+
+	// reset mouse if we're in the graph
+	if pt_in_rect(mouse_pos, graph_overdraw_rect) {
+		rect_tooltip_rect = EventID{-1, -1, -1, -1}
+		rect_tooltip_pos = Vec2{}
+		rendered_rect_tooltip = false
+		reset_cursor()
+	}
+
+	draw_rect(rects, graph_overdraw_rect, bg_color)
+	draw_rect(rects, rect(pos.x, graph_top, graph_size, graph_size), bg_color2)
+	draw_rect_outline(rects, rect(pos.x, graph_top, graph_size, graph_size), 2, outline_color)
+
 	text_width := measure_text(header, .PSize, .DefaultFont)
 	center_offset := (graph_size / 2) - (text_width / 2)
 	draw_text(rects, header, Vec2{pos.x + center_offset, pos.y}, .PSize, .DefaultFont, text_color)
-
-	graph_top := pos.y + em + line_gap
-	graph_bottom := graph_top + graph_size
-	draw_rect(rects, rect(pos.x, graph_top, graph_size, graph_size), bg_color2)
-	draw_rect_outline(rects, rect(pos.x, graph_top, graph_size, graph_size), 2, outline_color)
 
 	high_height := graph_top + graph_edge_pad - (em / 2)
 	low_height := graph_bottom - graph_edge_pad - (em / 2)
@@ -123,8 +139,6 @@ draw_histogram :: proc(rects: ^[dynamic]DrawRect, header: string, stat: ^Stats, 
 		}
 	}
 
-	graph_y_bounds := graph_size - (graph_edge_pad * 2)
-	graph_x_bounds := graph_size - graph_edge_pad
 
 	last_x : f64 = 0
 	last_y : f64 = 0
