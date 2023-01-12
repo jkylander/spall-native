@@ -10,7 +10,7 @@ import SDL_TTF "vendor:sdl2/ttf"
 import gl "vendor:OpenGL"
 
 draw_rect :: proc(rects: ^[dynamic]DrawRect, rect: Rect, color: BVec4) {
-	append(rects, DrawRect{FVec4{f32(rect.pos.x), f32(rect.pos.y), f32(rect.size.x), f32(rect.size.y)}, color, FVec2{-2, 0.0}})
+	append(rects, DrawRect{FVec4{f32(rect.x), f32(rect.y), f32(rect.w), f32(rect.h)}, color, FVec2{-2, 0.0}})
 }
 
 draw_line :: proc(rects: ^[dynamic]DrawRect, start, end: Vec2, width: f64, color: BVec4) {
@@ -23,10 +23,10 @@ draw_line :: proc(rects: ^[dynamic]DrawRect, start, end: Vec2, width: f64, color
 }
 
 draw_rect_outline :: proc(rects: ^[dynamic]DrawRect, rect: Rect, width: f64, color: BVec4) {
-	x1 := rect.pos.x
-	y1 := rect.pos.y
-	x2 := rect.pos.x + rect.size.x
-	y2 := rect.pos.y + rect.size.y
+	x1 := rect.x
+	y1 := rect.y
+	x2 := rect.x + rect.w
+	y2 := rect.y + rect.h
 
 	draw_line(rects, Vec2{x1, y1}, Vec2{x2, y1}, width, color)
 	draw_line(rects, Vec2{x1, y1}, Vec2{x1, y2}, width, color)
@@ -35,10 +35,10 @@ draw_rect_outline :: proc(rects: ^[dynamic]DrawRect, rect: Rect, width: f64, col
 }
 
 draw_rect_inline :: proc(rects: ^[dynamic]DrawRect, rect: Rect, width: f64, color: BVec4) {
-	x1 := rect.pos.x + width
-	y1 := rect.pos.y + width
-	x2 := rect.pos.x + rect.size.x - width
-	y2 := rect.pos.y + rect.size.y - width
+	x1 := rect.x + width
+	y1 := rect.y + width
+	x2 := rect.x + rect.w - width
+	y2 := rect.y + rect.h - width
 
 	draw_line(rects, Vec2{x1, y1}, Vec2{x2, y1}, width, color)
 	draw_line(rects, Vec2{x1, y1}, Vec2{x1, y2}, width, color)

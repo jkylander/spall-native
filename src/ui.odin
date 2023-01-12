@@ -23,16 +23,16 @@ tooltip :: proc(rects: ^[dynamic]DrawRect, pos: Vec2, min_x, max_x: f64, text: s
 	text_height := get_text_height(.PSize, .DefaultFont)
 
 	tooltip_rect := rect(pos.x, pos.y - (em / 2), text_width + em, text_height + (1.25 * em))
-	if tooltip_rect.pos.x + tooltip_rect.size.x > max_x {
-		tooltip_rect.pos.x = max_x - tooltip_rect.size.x
+	if tooltip_rect.x + tooltip_rect.w > max_x {
+		tooltip_rect.x = max_x - tooltip_rect.w
 	}
-	if tooltip_rect.pos.x < min_x {
-		tooltip_rect.pos.x = min_x
+	if tooltip_rect.x < min_x {
+		tooltip_rect.x = min_x
 	}
 
 	draw_rect(rects, tooltip_rect, bg_color)
 	draw_rect_outline(rects, tooltip_rect, 1, line_color)
-	draw_text(rects, text, Vec2{tooltip_rect.pos.x + (em / 2), tooltip_rect.pos.y + (em / 2)}, .PSize, .DefaultFont, text_color)
+	draw_text(rects, text, Vec2{tooltip_rect.x + (em / 2), tooltip_rect.y + (em / 2)}, .PSize, .DefaultFont, text_color)
 }
 
 button :: proc(rects: ^[dynamic]DrawRect, in_rect: Rect, label_text, tooltip_text: string, font: FontType, min_x, max_x: f64) -> bool {
@@ -41,8 +41,8 @@ button :: proc(rects: ^[dynamic]DrawRect, in_rect: Rect, label_text, tooltip_tex
 	label_height := get_text_height(.PSize, font)
 	draw_text(rects, label_text, 
 		Vec2{
-			in_rect.pos.x + (in_rect.size.x / 2) - (label_width / 2), 
-			in_rect.pos.y + (in_rect.size.y / 2) - (label_height / 2),
+			in_rect.x + (in_rect.w / 2) - (label_width / 2), 
+			in_rect.y + (in_rect.h / 2) - (label_height / 2),
 		}, .PSize, font, toolbar_text_color)
 
 	if pt_in_rect(mouse_pos, in_rect) {
@@ -50,7 +50,7 @@ button :: proc(rects: ^[dynamic]DrawRect, in_rect: Rect, label_text, tooltip_tex
 		if clicked {
 			return true
 		} else {
-			tip_pos := Vec2{in_rect.pos.x, in_rect.pos.y + in_rect.size.y + em}
+			tip_pos := Vec2{in_rect.x, in_rect.y + in_rect.h + em}
 			tooltip(rects, tip_pos, min_x, max_x, tooltip_text)
 		}
 	}
@@ -264,9 +264,12 @@ draw_graph :: proc(rects: ^[dynamic]DrawRect, header: string, history: ^queue.Qu
 	}
 }
 
-draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, width, display_width: f64) {
+draw_header :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState) {
+	header_rect := ui_state.header_rect
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+
 	// Render toolbar background
-	draw_rect(rects, rect(0, 0, width, toolbar_height), toolbar_color)
+	draw_rect(rects, header_rect, toolbar_color)
 
 	// draw toolbar
 	{
@@ -280,23 +283,23 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 		// Draw Logo
 		logo_text := "spall"
 		logo_width := measure_text(logo_text, .H1Size, .DefaultFont)
-		draw_text(rects, logo_text, Vec2{cursor_x, (toolbar_height / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
+		draw_text(rects, logo_text, Vec2{cursor_x, (header_rect.h / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
 		cursor_x += logo_width + edge_pad
 
 		// Open File
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf07c", "open file", .IconFont, 0, width) {
+		if button(rects, rect(cursor_x, (header_rect.h / 2) - (button_height / 2), button_width, button_height), "\uf07c", "open file", .IconFont, 0, ui_state.width) {
 			open_file_dialog()
 		}
 		cursor_x += button_width + button_pad
 
 		// Reset Camera
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf066", "reset camera", .IconFont, 0, width) {
-			reset_camera(trace, display_width)
+		if button(rects, rect(cursor_x, (header_rect.h / 2) - (button_height / 2), button_width, button_height), "\uf066", "reset camera", .IconFont, 0, ui_state.width) {
+			reset_flamegraph_camera(trace, ui_state)
 		}
 		cursor_x += button_width + button_pad
 
 		// Process All Events
-		if button(rects, rect(cursor_x, (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf1fe", "get stats for the whole file", .IconFont, 0, width) {
+		if button(rects, rect(cursor_x, (header_rect.h / 2) - (button_height / 2), button_width, button_height), "\uf1fe", "get stats for the whole file", .IconFont, 0, ui_state.width) {
 			stats_state = .Pass1
 			did_multiselect = true
 			total_tracked_time = 0.0
@@ -319,8 +322,8 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 		cursor_x += button_width + button_pad
 
 		file_name_width := measure_text(trace.base_name, .H1Size, .DefaultFont)
-		name_x := max((display_width / 2) - (file_name_width / 2), cursor_x)
-		draw_text(rects, trace.base_name, Vec2{name_x, (toolbar_height / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
+		name_x := max((full_flamegraph_rect.w / 2) - (file_name_width / 2), cursor_x)
+		draw_text(rects, trace.base_name, Vec2{name_x, (header_rect.h / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
 
 		// colormode button nonsense
 		color_text : string
@@ -337,7 +340,12 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 			color_text = "\uf111"
 		}
 
-		if button(rects, rect(width - edge_pad - button_width, (toolbar_height / 2) - (button_height / 2), button_width, button_height), color_text, tool_text, .IconFont, 0, width) {
+		if button(rects, rect(
+							ui_state.width - edge_pad - button_width, 
+							(header_rect.h / 2) - (button_height / 2), 
+							button_width,
+							button_height,
+						 ), color_text, tool_text, .IconFont, 0, ui_state.width) {
 			new_colormode: ColorMode
 
 			// rotate between auto, dark, and light
@@ -364,49 +372,59 @@ draw_toolbar :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, toolbar_height, w
 			}
 			colormode = new_colormode
 		}
-		if button(rects, rect(width - edge_pad - ((button_width * 2) + (button_pad)), (toolbar_height / 2) - (button_height / 2), button_width, button_height), "\uf188", "toggle debug mode", .IconFont, 0, width) {
+		if button(rects, rect(ui_state.width - edge_pad - ((button_width * 2) + (button_pad)), (header_rect.h / 2) - (button_height / 2), button_width, button_height), "\uf188", "toggle debug mode", .IconFont, 0, ui_state.width) {
 			enable_debug = !enable_debug
 		}
 	}
 }
 
-draw_debug :: proc(rects: ^[dynamic]DrawRect, width, text_y, x_subpad: f64, graph_pos: Vec2) {
+draw_debug :: proc(rects: ^[dynamic]DrawRect, ui_state: ^UIState) {
+	minimap_rect := ui_state.minimap_rect
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	flamegraph_header_height := ui_state.flamegraph_header_height
+
+	text_y := ui_state.height - em - ui_state.top_line_gap
+	graph_pos := Vec2{ui_state.width - minimap_rect.w - 150, full_flamegraph_rect.y + flamegraph_header_height}
+	x_subpad := em
+
 	y := text_y
 	draw_graph(rects, "FPS", &fps_history, graph_pos)
 
 	hash_str := fmt.tprintf("Build: 0x%X", abs(build_hash))
 	hash_width := measure_text(hash_str, .PSize, .MonoFont)
-	draw_text(rects, hash_str, Vec2{width - hash_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, hash_str, Vec2{ui_state.width - hash_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	seed_str := fmt.tprintf("Seed: 0x%X", random_seed)
 	seed_width := measure_text(seed_str, .PSize, .MonoFont)
-	draw_text(rects, seed_str, Vec2{width - seed_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, seed_str, Vec2{ui_state.width - seed_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	rects_str := fmt.tprintf("Rect Count: %d", rect_count)
 	rects_txt_width := measure_text(rects_str, .PSize, .MonoFont)
-	draw_text(rects, rects_str, Vec2{width - rects_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, rects_str, Vec2{ui_state.width - rects_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	buckets_str := fmt.tprintf("Bucket Count: %d", bucket_count)
 	buckets_txt_width := measure_text(buckets_str, .PSize, .MonoFont)
-	draw_text(rects, buckets_str, Vec2{width - buckets_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, buckets_str, Vec2{ui_state.width - buckets_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	events_str := fmt.tprintf("Event Count: %d", rect_count - bucket_count)
 	events_txt_width := measure_text(events_str, .PSize, .MonoFont)
-	draw_text(rects, events_str, Vec2{width - events_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, events_str, Vec2{ui_state.width - events_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	cache_hit_str := fmt.tprintf("TTF Cache Hits: %d", cache_hits_this_frame)
 	cache_hit_txt_width := measure_text(cache_hit_str, .PSize, .MonoFont)
-	draw_text(rects, cache_hit_str, Vec2{width - cache_hit_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, cache_hit_str, Vec2{ui_state.width - cache_hit_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	cache_miss_str := fmt.tprintf("TTF Cache Misses: %d", cache_misses_this_frame)
 	cache_miss_txt_width := measure_text(cache_miss_str, .PSize, .MonoFont)
-	draw_text(rects, cache_miss_str, Vec2{width - cache_miss_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
+	draw_text(rects, cache_miss_str, Vec2{ui_state.width - cache_miss_txt_width - x_subpad, prev_line(&y, em)}, .PSize, .MonoFont, text_color2)
 
 	cache_hits_this_frame = 0
 	cache_misses_this_frame = 0
 }
 
-draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
+draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState) {
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+
 	tip_pos := mouse_pos
 	tip_pos += Vec2{1, 2} * em / dpr
 
@@ -444,19 +462,19 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
 
 	tooltip_rect := rect(tip_pos.x, tip_pos.y - (em / 2), rect_width, rect_height)
 
-	min_x := graph_rect.pos.x
-	max_x := graph_rect.pos.x + graph_rect.size.x
-	if tooltip_rect.pos.x + tooltip_rect.size.x > max_x {
-		tooltip_rect.pos.x = max_x - tooltip_rect.size.x
+	min_x := full_flamegraph_rect.x
+	max_x := full_flamegraph_rect.x + full_flamegraph_rect.w
+	if tooltip_rect.x + tooltip_rect.w > max_x {
+		tooltip_rect.x = max_x - tooltip_rect.w
 	}
-	if tooltip_rect.pos.x < min_x {
-		tooltip_rect.pos.x = min_x
+	if tooltip_rect.x < min_x {
+		tooltip_rect.x = min_x
 	}
 
 	draw_rect(rects, tooltip_rect, bg_color)
 	draw_rect_outline(rects, tooltip_rect, 1, line_color)
-	tooltip_start_x := tooltip_rect.pos.x + (em / 2)
-	tooltip_start_y := tooltip_rect.pos.y + (em / 2)
+	tooltip_start_x := tooltip_rect.x + (em / 2)
+	tooltip_start_y := tooltip_rect.y + (em / 2)
 
 	cursor_x := tooltip_start_x
 	cursor_y := tooltip_start_y
@@ -471,438 +489,21 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, dpr: f64) {
 	}
 }
 
-render_widetree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, p_idx, t_idx: int, start_x, y, height, scale: f64, layer_count: int) {
-	thread := &trace.processes[p_idx].threads[t_idx]
-	depth := thread.depths[0]
-	tree := depth.tree
+draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, start_time, end_time: f64, ui_state: ^UIState) {
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
+	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
+
+	flamegraph_header_height := ui_state.flamegraph_header_height
+	flamegraph_toptext_height := ui_state.flamegraph_toptext_height
+	info_pane_rect := ui_state.info_pane_rect
 
-	// If we blow this, we're in space
-	tree_stack := [128]uint{}
-	stack_len := 0
-
-	alpha := u8(255.0 / f64(layer_count))
-	tree_stack[0] = depth.head; stack_len += 1
-	for stack_len > 0 {
-		stack_len -= 1
-
-		tree_idx := tree_stack[stack_len]
-		if tree_idx >= len(tree) {
-			fmt.printf("%d, %d\n", p_idx, t_idx)
-			fmt.printf("%d\n", depth.head)
-			fmt.printf("%d\n", stack_len)
-			fmt.printf("%v\n", tree_stack)
-			fmt.printf("%v\n", tree)
-			fmt.printf("hmm????\n")
-			push_fatal(SpallError.Bug)
-		}
-
-		cur_node := tree[tree_idx]
-		range := cur_node.end_time - cur_node.start_time
-		range_width := range * scale
-
-		// draw summary faketangle
-		min_width := 2.0 
-		if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
-			x := cur_node.start_time
-			w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
-			xm := x * scale
-
-			r_x   := x * scale
-			end_x := r_x + w
-
-			r_x   += start_x
-			end_x += start_x
-
-			r_x    = max(r_x, 0)
-			r_w   := end_x - r_x
-
-			draw_rect(rects, rect(r_x, y, r_w, height), BVec4{u8(wide_rect_color.x), u8(wide_rect_color.y), u8(wide_rect_color.z), alpha})
-			continue
-		}
-
-		// we're at a bottom node, draw the whole thing
-		if cur_node.child_count == 0 {
-			scan_arr := depth.events[cur_node.start_idx:cur_node.start_idx+uint(cur_node.arr_len)]
-			render_wideevents(rects, trace, scan_arr, thread.max_time, start_x, y, height, scale, alpha)
-			continue
-		}
-
-		for i := cur_node.child_count - 1; i >= 0; i -= 1 {
-			tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
-		}
-	}
-}
-
-render_wideevents :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, scan_arr: []Event, thread_max_time: f64, start_x, y, height, scale: f64, alpha: u8) {
-	for ev, de_id in scan_arr {
-		x := ev.timestamp - trace.total_min_time
-		duration := bound_duration(ev, thread_max_time)
-		w := max(duration * scale, 2.0)
-		xm := x * scale
-
-		// Carefully extract the [start, end] interval of the rect so that we can clip the left
-		// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
-		// problems drawing a rectangle which starts at a massively huge negative number on
-		// the left.
-		r_x   := x * scale
-		end_x := r_x + w
-
-		r_x   += start_x
-		end_x += start_x
-
-		r_x    = max(r_x, 0)
-		r_w   := end_x - r_x
-
-		draw_rect(rects, rect(r_x, y, r_w, height), BVec4{u8(wide_rect_color.x), u8(wide_rect_color.y), u8(wide_rect_color.z), alpha})
-	}
-}
-
-render_minitree :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pid, tid: int, did: int, start_x, y, height, scale: f64) {
-	thread := trace.processes[pid].threads[tid]
-	depth := thread.depths[did]
-	tree := depth.tree
-
-	if len(tree) == 0 {
-		fmt.printf("depth_idx: %d, depth count: %d, %v\n", did, len(thread.depths), thread.depths)
-		push_fatal(SpallError.Bug)
-	}
-
-	found_rid := -1
-	range_loop: for range, r_idx in trace.selected_ranges {
-		if range.pid == pid && range.tid == tid && range.did == did {
-			found_rid = r_idx
-			break
-		}
-	}
-
-	// If we blow this, we're in space
-	tree_stack := [128]uint{}
-	stack_len := 0
-
-	tree_stack[0] = depth.head; stack_len += 1
-	for stack_len > 0 {
-		stack_len -= 1
-
-		tree_idx := tree_stack[stack_len]
-		cur_node := tree[tree_idx]
-		range := cur_node.end_time - cur_node.start_time
-		range_width := range * scale
-
-		// draw summary faketangle
-		min_width := 2.0 
-		if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
-			x := cur_node.start_time
-			w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
-			xm := x * scale
-
-			r_x   := x * scale
-			end_x := r_x + w
-
-			r_x   += start_x
-			end_x += start_x
-
-			r_x    = max(r_x, 0)
-			r_w   := end_x - r_x
-
-			rect_color := cur_node.avg_color
-			grey := greyscale(cur_node.avg_color)
-			should_fade := false
-			if did_multiselect {
-				if found_rid == -1 { should_fade = true } 
-				else {
-					range := trace.selected_ranges[found_rid]	
-					if !range_in_range(cur_node.start_idx, cur_node.end_idx, 
-									   uint(range.start), uint(range.end)) {
-						should_fade = true
-					}
-				}
-			}
-			if should_fade {
-				if multiselect_t != 0 && greyanim_t > 1 {
-					anim_playing = false
-					rect_color = grey
-				} else {
-					st := ease_in_out(greyanim_t)
-					rect_color = math.lerp(rect_color, grey, greymotion)
-				}
-			}
-
-			draw_rect(rects, rect(r_x, y, r_w, height), BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
-			continue
-		}
-
-		// we're at a bottom node, draw the whole thing
-		if cur_node.child_count == 0 {
-			scan_arr := depth.events[cur_node.start_idx:cur_node.start_idx+uint(cur_node.arr_len)]
-			render_minievents(rects, trace, scan_arr, thread.max_time, start_x, y, height, scale, int(cur_node.start_idx), found_rid)
-			continue
-		}
-
-		for i := cur_node.child_count - 1; i >= 0; i -= 1 {
-			tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
-		}
-	}
-}
-
-render_minievents :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, scan_arr: []Event, thread_max_time: f64, start_x, y, height, scale: f64, start_idx, found_rid: int) {
-	for ev, de_id in scan_arr {
-		x := ev.timestamp - trace.total_min_time
-		duration := bound_duration(ev, thread_max_time)
-		w := max(duration * scale, 2.0)
-		xm := x * scale
-
-		// Carefully extract the [start, end] interval of the rect so that we can clip the left
-		// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
-		// problems drawing a rectangle which starts at a massively huge negative number on
-		// the left.
-		r_x   := x * scale
-		end_x := r_x + w
-
-		r_x   += start_x
-		end_x += start_x
-
-		r_x    = max(r_x, 0)
-		r_w   := end_x - r_x
-
-		idx := name_color_idx(trace, in_getstr(&trace.string_block, ev.name))
-		rect_color := trace.color_choices[idx]
-		e_idx := int(start_idx) + de_id
-
-		grey := greyscale(trace.color_choices[idx])
-		should_fade := false
-		if did_multiselect {
-			if found_rid == -1 { should_fade = true } 
-			else {
-				range := trace.selected_ranges[found_rid]	
-				if !val_in_range(e_idx, range.start, range.end - 1) { should_fade = true }
-			}
-		}
-
-		if should_fade {
-			if multiselect_t != 0 && greyanim_t > 1 {
-				anim_playing = false
-				rect_color = grey
-			} else {
-				st := ease_in_out(greyanim_t)
-				rect_color = math.lerp(rect_color, grey, greymotion)
-			}
-		}
-
-		draw_rect(rects, rect(r_x, y, r_w, height), BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
-	}
-}
-
-render_tree :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, pid, tid, did: int, y_start, height, start_time, end_time: f64) {
-	thread := trace.processes[pid].threads[tid]
-	depth := thread.depths[did]
-	tree := depth.tree
-
-	found_rid := -1
-	range_loop: for range, r_idx in trace.selected_ranges {
-		if range.pid == pid && range.tid == tid && range.did == did {
-			found_rid = r_idx
-			break
-		}
-	}
-
-	// If we blow this, we're in space
-	tree_stack := [128]uint{}
-	stack_len := 0
-
-	tree_stack[0] = depth.head; stack_len += 1
-	for stack_len > 0 {
-		stack_len -= 1
-
-		tree_idx := tree_stack[stack_len]
-		cur_node := tree[tree_idx]
-
-		if cur_node.end_time < f64(start_time) || cur_node.start_time > f64(end_time) {
-			continue
-		}
-
-		range := cur_node.end_time - cur_node.start_time
-		range_width := range * cam.current_scale
-
-		// draw summary faketangle
-		min_width := 2.0
-		if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
-			y := height * f64(did)
-			h := height
-
-			x := cur_node.start_time
-			w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
-			xm := x * cam.target_scale
-
-			r_x   := x * cam.current_scale
-			end_x := r_x + w
-
-			r_x   += cam.pan.x + disp_rect.pos.x
-			end_x += cam.pan.x + disp_rect.pos.x
-
-			r_x    = max(r_x, 0)
-
-			r_y := y_start + y
-			dr := Rect{Vec2{r_x, r_y}, Vec2{end_x - r_x, h}}
-
-			rect_color := cur_node.avg_color
-
-			grey := greyscale(cur_node.avg_color)
-			should_fade := false
-			if did_multiselect {
-				if found_rid == -1 { should_fade = true } 
-				else {
-					range := trace.selected_ranges[found_rid]	
-					if !range_in_range(cur_node.start_idx, cur_node.end_idx, 
-									   uint(range.start), uint(range.end)) {
-						should_fade = true
-					}
-				}
-			}
-			if should_fade {
-				if multiselect_t != 0 && greyanim_t > 1 {
-					anim_playing = false
-					rect_color = grey
-				} else {
-					st := ease_in_out(greyanim_t)
-					rect_color = math.lerp(rect_color, grey, greymotion)
-				}
-			}
-
-			draw_rect(rects, dr, BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
-
-			rect_count += 1
-			bucket_count += 1
-			continue
-		}
-
-		// we're at a bottom node, draw the whole thing
-		if cur_node.child_count == 0 {
-			render_events(rects, text_rects, trace, 
-				pid, tid, did, depth.events[:], cur_node.start_idx, cur_node.arr_len, y_start, height, found_rid)
-			continue
-		}
-
-		for i := cur_node.child_count - 1; i >= 0; i -= 1 {
-			tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
-		}
-	}
-}
-
-render_events :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, p_idx, t_idx, d_idx: int, events: []Event, start_idx: uint, arr_len: i8, y_start, height: f64, found_rid: int) {
-	thread := trace.processes[p_idx].threads[t_idx]
-	scan_arr := events[start_idx:start_idx+uint(arr_len)]
-	y := height * f64(d_idx)
-	h := height
-
-	for ev, de_id in scan_arr {
-		x := ev.timestamp - trace.total_min_time
-		duration := bound_duration(ev, thread.max_time)
-		w := max(duration * cam.current_scale, 2.0)
-		xm := x * cam.target_scale
-
-
-		// Carefully extract the [start, end] interval of the rect so that we can clip the left
-		// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
-		// problems drawing a rectangle which starts at a massively huge negative number on
-		// the left.
-		r_x   := x * cam.current_scale
-		end_x := r_x + w
-
-		r_x   += cam.pan.x + disp_rect.pos.x
-		end_x += cam.pan.x + disp_rect.pos.x
-
-		r_x    = max(r_x, 0)
-
-		r_y := y_start + y
-		dr := Rect{Vec2{r_x, r_y}, Vec2{end_x - r_x, h}}
-
-		if !rect_in_rect(dr, graph_rect) {
-			continue
-		}
-
-		ev_name := in_getstr(&trace.string_block, ev.name)
-		idx := name_color_idx(trace, ev_name)
-		rect_color := trace.color_choices[idx]
-		e_idx := int(start_idx) + de_id
-
-		grey := greyscale(trace.color_choices[idx])
-
-		should_fade := false
-		if did_multiselect {
-			if found_rid == -1 { should_fade = true } 
-			else {
-				range := trace.selected_ranges[found_rid]	
-				if !val_in_range(e_idx, range.start, range.end - 1) { should_fade = true }
-			}
-		}
-
-		if should_fade {
-			if multiselect_t != 0 && greyanim_t > 1 {
-				anim_playing = false
-				rect_color = grey
-			} else {
-				rect_color = math.lerp(rect_color, grey, greymotion)
-			}
-		}
-
-		if int(selected_event.pid) == p_idx && int(selected_event.tid) == t_idx &&
-		   int(selected_event.did) == d_idx && int(selected_event.eid) == e_idx {
-			rect_color.x += 30
-			rect_color.y += 30
-			rect_color.z += 30
-		}
-
-		draw_rect(rects, dr, BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
-		rect_count += 1
-
-		underhang := disp_rect.pos.x - dr.pos.x
-		overhang := (disp_rect.pos.x + disp_rect.size.x) - dr.pos.x
-		disp_w := min(dr.size.x - underhang, dr.size.x, overhang)
-
-		display_name := ev_name
-		if ev.duration == -1 {
-			display_name = fmt.tprintf("%s (Did Not Finish)", ev_name)
-		}
-
-		text_pad := (em / 2)
-		text_width := int(math.floor((disp_w - (text_pad * 2)) / ch_width))
-		max_chars := max(0, min(len(display_name), text_width))
-		name_str := display_name[:max_chars]
-		str_x := max(dr.pos.x, disp_rect.pos.x) + text_pad
-
-		if len(name_str) > 4 || max_chars == len(display_name) {
-			if max_chars != len(display_name) {
-				name_str = fmt.tprintf("%s…", name_str[:len(name_str)-1])
-			}
-
-			batch_text(text_rects, name_str, Vec2{str_x, dr.pos.y + (height / 2) - (em / 2)}, .PSize, .MonoFont, text_color3)
-		}
-
-		if pt_in_rect(mouse_pos, graph_rect) && pt_in_rect(mouse_pos, dr) {
-			set_cursor("pointer")
-			if !rendered_rect_tooltip && !shift_down {
-				rect_tooltip_pos = dr.pos
-				rect_tooltip_rect = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
-				rendered_rect_tooltip = true
-			}
-
-			if clicked && !shift_down {
-				pressed_event = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
-			}
-			if mouse_up_now && !shift_down {
-				released_event = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
-			}
-		}
-	}
-}
-
-draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, start_time, end_time, start_x, rect_height, info_pane_y, graph_header_height, graph_header_text_height, top_line_gap, display_width: f64) {
 	// graph-relative timebar and subdivisions
 	division, draw_tick_start: f64
 	ticks: int
 	{
 		// mus_range := end_time - start_time <- simplifies to the following
-		mus_range := display_width / cam.current_scale
+		mus_range := full_flamegraph_rect.w / cam.current_scale
 		v1 := math.log10(mus_range)
 		v2 := math.floor(v1)
 		rem := v1 - v2
@@ -912,10 +513,10 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 		else if rem < 0.6 { division -= (division / 2)   } // multiples of 5
 
 		display_range_start := -cam.pan.x / cam.current_scale
-		display_range_end := (display_width - cam.pan.x) / cam.current_scale
+		display_range_end := (full_flamegraph_rect.w - cam.pan.x) / cam.current_scale
 
 		draw_tick_start = f_round_down(display_range_start, division)
-		draw_tick_end := f_round_down(display_range_end, division)
+		draw_tick_end  := f_round_down(display_range_end, division)
 		tick_range := draw_tick_end - draw_tick_start
 
 		ticks = int(tick_range / division) + 3
@@ -924,48 +525,47 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 		line_x_start := -4
 		line_x_end   := ticks * subdivisions
 
-		line_start := disp_rect.pos.y + graph_header_height - top_line_gap
-		line_height := graph_rect.size.y
+		line_start := full_flamegraph_rect.y + flamegraph_header_height - ui_state.top_line_gap
+		line_height := full_flamegraph_rect.h
 		for i := line_x_start; i < line_x_end; i += 1 {
 			tick_time := draw_tick_start + (f64(i) * (division / f64(subdivisions)))
 			x_off := (tick_time * cam.current_scale) + cam.pan.x
-
 			color := (i % subdivisions) != 0 ? subdivision_color : division_color
 
-			draw_line(rects, Vec2{start_x + x_off, line_start}, Vec2{start_x + x_off, line_start + line_height}, 1, BVec4{u8(color.x), u8(color.y), u8(color.z), u8(color.w)})
+			draw_line(rects, Vec2{ui_state.side_pad + x_off, line_start}, Vec2{ui_state.side_pad + x_off, line_start + line_height}, 1, BVec4{u8(color.x), u8(color.y), u8(color.z), u8(color.w)})
 		}
 
 	}
 	flush_rects(rects)
 
 	// graph
-	cur_y := padded_graph_rect.pos.y - cam.pan.y
+	cur_y := padded_flamegraph_rect.y - cam.pan.y
 	proc_loop: for proc_v, p_idx in &trace.processes {
 		h1_size : f64 = 0
 		if len(trace.processes) > 1 {
-			if cur_y > disp_rect.pos.y {
+			if cur_y > full_flamegraph_rect.y {
 				row_text: string
 				if proc_v.name.len > 0 {
 					row_text = fmt.tprintf("%s (PID %d)", in_getstr(&trace.string_block, proc_v.name), proc_v.process_id)
 				} else {
 					row_text = fmt.tprintf("PID: %d", proc_v.process_id)
 				}
-				batch_text(text_rects, row_text, Vec2{start_x + 5, cur_y}, .H1Size, .DefaultFont, text_color)
+				batch_text(text_rects, row_text, Vec2{ui_state.side_pad + 5, cur_y}, .H1Size, .DefaultFont, text_color)
 			}
 
 			h1_size = h1_height + (h1_height / 2)
 			cur_y += h1_size
 		}
 
-		thread_loop: for tm, t_idx in &proc_v.threads {
+		thread_loop: for thread, t_idx in &proc_v.threads {
 			last_cur_y := cur_y
 			h2_size := h2_height + (h2_height / 2)
 			cur_y += h2_size
 
 			thread_gap := 8.0
-			thread_advance := ((f64(len(tm.depths)) * rect_height) + thread_gap)
+			thread_advance := ((f64(len(thread.depths)) * ui_state.rect_height) + thread_gap)
 
-			if cur_y > info_pane_y {
+			if cur_y > info_pane_rect.y {
 				break proc_loop
 			}
 			if cur_y + thread_advance < 0 {
@@ -973,19 +573,210 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 				continue
 			}
 
-			if last_cur_y > disp_rect.pos.y {
+			if last_cur_y > full_flamegraph_rect.y {
 				row_text: string
-				if tm.name.len > 0 {
-					row_text = fmt.tprintf("%s (TID %d)", in_getstr(&trace.string_block, tm.name), tm.thread_id)
+				if thread.name.len > 0 {
+					row_text = fmt.tprintf("%s (TID %d)", in_getstr(&trace.string_block, thread.name), thread.thread_id)
 				} else {
-					row_text = fmt.tprintf("TID: %d", tm.thread_id)
+					row_text = fmt.tprintf("TID: %d", thread.thread_id)
 				}
-				batch_text(text_rects, row_text, Vec2{start_x + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
+				batch_text(text_rects, row_text, Vec2{ui_state.side_pad + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
 			}
 
 			cur_depth_off := 0
-			for depth, d_idx in &tm.depths {
-				render_tree(rects, text_rects, trace, p_idx, t_idx, d_idx, cur_y, rect_height, start_time, end_time)
+			for depth, d_idx in &thread.depths {
+				tree := depth.tree
+
+				found_rid := -1
+				range_loop: for range, r_idx in trace.selected_ranges {
+					if range.pid == p_idx && range.tid == t_idx && range.did == d_idx {
+						found_rid = r_idx
+						break
+					}
+				}
+
+				// If we blow this, we're in space
+				tree_stack := [128]uint{}
+				stack_len := 0
+
+				tree_stack[0] = depth.head; stack_len += 1
+				for stack_len > 0 {
+					stack_len -= 1
+
+					tree_idx := tree_stack[stack_len]
+					cur_node := tree[tree_idx]
+
+					if cur_node.end_time < f64(start_time) || cur_node.start_time > f64(end_time) {
+						continue
+					}
+
+					range := cur_node.end_time - cur_node.start_time
+					range_width := range * cam.current_scale
+
+					// draw summary faketangle
+					min_width := 2.0
+					if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
+						y := ui_state.rect_height * f64(d_idx)
+						h := ui_state.rect_height
+
+						x := cur_node.start_time
+						w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
+						xm := x * cam.target_scale
+
+						r_x   := x * cam.current_scale
+						end_x := r_x + w
+
+						r_x   += cam.pan.x + full_flamegraph_rect.x
+						end_x += cam.pan.x + full_flamegraph_rect.x
+
+						r_x    = max(r_x, 0)
+
+						r_y := cur_y + y
+						dr  := rect(r_x, r_y, end_x - r_x, h)
+
+						rect_color := cur_node.avg_color
+
+						grey := greyscale(cur_node.avg_color)
+						should_fade := false
+						if did_multiselect {
+							if found_rid == -1 { should_fade = true } 
+							else {
+								range := trace.selected_ranges[found_rid]	
+								if !range_in_range(cur_node.start_idx, cur_node.end_idx, uint(range.start), uint(range.end)) {
+									should_fade = true
+								}
+							}
+						}
+						if should_fade {
+							if multiselect_t != 0 && greyanim_t > 1 {
+								anim_playing = false
+								rect_color = grey
+							} else {
+								st := ease_in_out(greyanim_t)
+								rect_color = math.lerp(rect_color, grey, greymotion)
+							}
+						}
+
+						draw_rect(rects, dr, BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
+
+						rect_count += 1
+						bucket_count += 1
+						continue
+					}
+
+					// we're at a bottom node, draw the whole thing
+					if cur_node.child_count == 0 {
+						scan_arr := depth.events[cur_node.start_idx:cur_node.start_idx+uint(cur_node.arr_len)]
+						y := ui_state.rect_height * f64(d_idx)
+						h := ui_state.rect_height
+
+						for ev, de_id in scan_arr {
+							x := ev.timestamp - trace.total_min_time
+							duration := bound_duration(ev, thread.max_time)
+							w := max(duration * cam.current_scale, 2.0)
+							xm := x * cam.target_scale
+
+
+							// Carefully extract the [start, end] interval of the rect so that we can clip the left
+							// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
+							// problems drawing a rectangle which starts at a massively huge negative number on
+							// the left.
+							r_x   := x * cam.current_scale
+							end_x := r_x + w
+
+							r_x   += cam.pan.x + full_flamegraph_rect.x
+							end_x += cam.pan.x + full_flamegraph_rect.x
+
+							r_x    = max(r_x, 0)
+
+							r_y := cur_y + y
+							dr := rect(r_x, r_y, end_x - r_x, h)
+
+							if !rect_in_rect(dr, inner_flamegraph_rect) {
+								continue
+							}
+
+							ev_name := in_getstr(&trace.string_block, ev.name)
+							idx := name_color_idx(trace, ev_name)
+							rect_color := trace.color_choices[idx]
+							e_idx := int(cur_node.start_idx) + de_id
+
+							grey := greyscale(trace.color_choices[idx])
+
+							should_fade := false
+							if did_multiselect {
+								if found_rid == -1 { should_fade = true } 
+								else {
+									range := trace.selected_ranges[found_rid]	
+									if !val_in_range(e_idx, range.start, range.end - 1) { should_fade = true }
+								}
+							}
+
+							if should_fade {
+								if multiselect_t != 0 && greyanim_t > 1 {
+									anim_playing = false
+									rect_color = grey
+								} else {
+									rect_color = math.lerp(rect_color, grey, greymotion)
+								}
+							}
+
+							if int(selected_event.pid) == p_idx && int(selected_event.tid) == t_idx &&
+							   int(selected_event.did) == d_idx && int(selected_event.eid) == e_idx {
+								rect_color.x += 30
+								rect_color.y += 30
+								rect_color.z += 30
+							}
+
+							draw_rect(rects, dr, BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
+							rect_count += 1
+
+							underhang := full_flamegraph_rect.x - dr.x
+							overhang := (full_flamegraph_rect.x + full_flamegraph_rect.w) - dr.x
+							disp_w := min(dr.w - underhang, dr.w, overhang)
+
+							display_name := ev_name
+							if ev.duration == -1 {
+								display_name = fmt.tprintf("%s (Did Not Finish)", ev_name)
+							}
+
+							text_pad := (em / 2)
+							text_width := int(math.floor((disp_w - (text_pad * 2)) / ch_width))
+							max_chars := max(0, min(len(display_name), text_width))
+							name_str := display_name[:max_chars]
+							str_x := max(dr.x, full_flamegraph_rect.x) + text_pad
+
+							if len(name_str) > 4 || max_chars == len(display_name) {
+								if max_chars != len(display_name) {
+									name_str = fmt.tprintf("%s…", name_str[:len(name_str)-1])
+								}
+
+								batch_text(text_rects, name_str, Vec2{str_x, dr.y + (ui_state.rect_height / 2) - (em / 2)}, .PSize, .MonoFont, text_color3)
+							}
+
+							if pt_in_rect(mouse_pos, inner_flamegraph_rect) && pt_in_rect(mouse_pos, dr) {
+								set_cursor("pointer")
+								if !rendered_rect_tooltip && !shift_down {
+									rect_tooltip_pos = Vec2{dr.x, dr.y}
+									rect_tooltip_rect = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
+									rendered_rect_tooltip = true
+								}
+
+								if clicked && !shift_down {
+									pressed_event = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
+								}
+								if mouse_up_now && !shift_down {
+									released_event = {i64(p_idx), i64(t_idx), i64(d_idx), i64(e_idx)}
+								}
+							}
+						}
+						continue
+					}
+
+					for i := cur_node.child_count - 1; i >= 0; i -= 1 {
+						tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
+					}
+				}
 			}
 			cur_y += thread_advance
 		}
@@ -994,7 +785,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 	flush_text_batch(text_rects)
 
 	// relative time back-cover
-	draw_rect(rects, rect(start_x, disp_rect.pos.y, display_width, graph_header_text_height), bg_color)
+	draw_rect(rects, rect(ui_state.side_pad, full_flamegraph_rect.y, full_flamegraph_rect.w, flamegraph_toptext_height), bg_color)
 
 	// timestamps for subdivision lines
 	for i := 0; i < ticks; i += 1 {
@@ -1003,18 +794,22 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 
 		time_str := time_fmt(tick_time)
 		text_width := measure_text(time_str, .PSize, .DefaultFont)
-		draw_text(rects, time_str, Vec2{start_x + x_off - (text_width / 2), disp_rect.pos.y + (graph_header_text_height / 2) - (em / 3)}, .PSize, .DefaultFont, text_color)
+		draw_text(rects, time_str, Vec2{ui_state.side_pad + x_off - (text_width / 2), full_flamegraph_rect.y + (flamegraph_toptext_height / 2) - (em / 3)}, .PSize, .DefaultFont, text_color)
 	}
 }
 
-draw_widegraph :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight_start_x, highlight_end_x, start_x, display_width, wide_graph_height, width, wide_graph_y, mini_graph_padded_width: f64) {
-	wide_scale_x := rescale(1.0, 0, trace.total_max_time - trace.total_min_time, 0, display_width)
+draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight_start_x, highlight_end_x: f64, ui_state: ^UIState) {
+	global_activity_rect := ui_state.global_activity_rect
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	minimap_rect := ui_state.minimap_rect
+
+	wide_scale_x := rescale(1.0, 0, trace.total_max_time - trace.total_min_time, 0, full_flamegraph_rect.w)
 	layer_count := 1
 	for proc_v, _ in trace.processes {
 		layer_count += len(proc_v.threads)
 	}
 
-	draw_rect(rects, rect(start_x, wide_graph_y, display_width, wide_graph_height), BVec4{u8(wide_bg_color.x), u8(wide_bg_color.y), u8(wide_bg_color.z), u8(wide_bg_color.w)})
+	draw_rect(rects, global_activity_rect, BVec4{u8(wide_bg_color.x), u8(wide_bg_color.y), u8(wide_bg_color.z), u8(wide_bg_color.w)})
 
 	for proc_v, p_idx in &trace.processes {
 		for tm, t_idx in &proc_v.threads {
@@ -1022,76 +817,295 @@ draw_widegraph :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight_start
 				continue
 			}
 
-			render_widetree(rects, trace, p_idx, t_idx, start_x, wide_graph_y, wide_graph_height, wide_scale_x, layer_count)
+			thread := &trace.processes[p_idx].threads[t_idx]
+			depth := thread.depths[0]
+			tree := depth.tree
+
+			// If we blow this, we're in space
+			tree_stack := [128]uint{}
+			stack_len := 0
+
+			alpha := u8(255.0 / f64(layer_count))
+			tree_stack[0] = depth.head; stack_len += 1
+			for stack_len > 0 {
+				stack_len -= 1
+
+				tree_idx := tree_stack[stack_len]
+				if tree_idx >= len(tree) {
+					fmt.printf("%d, %d\n", p_idx, t_idx)
+					fmt.printf("%d\n", depth.head)
+					fmt.printf("%d\n", stack_len)
+					fmt.printf("%v\n", tree_stack)
+					fmt.printf("%v\n", tree)
+					fmt.printf("hmm????\n")
+					push_fatal(SpallError.Bug)
+				}
+
+				cur_node := tree[tree_idx]
+				range := cur_node.end_time - cur_node.start_time
+				range_width := range * wide_scale_x
+
+				// draw summary faketangle
+				min_width := 2.0 
+				if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
+					x := cur_node.start_time
+					w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
+					xm := x * wide_scale_x
+
+					r_x   := x * wide_scale_x
+					end_x := r_x + w
+
+					r_x   += ui_state.side_pad
+					end_x += ui_state.side_pad
+
+					r_x    = max(r_x, 0)
+					r_w   := end_x - r_x
+
+					draw_rect(rects, rect(r_x, global_activity_rect.y, r_w, global_activity_rect.h), BVec4{u8(wide_rect_color.x), u8(wide_rect_color.y), u8(wide_rect_color.z), alpha})
+					continue
+				}
+
+				// we're at a bottom node, draw the whole thing
+				if cur_node.child_count == 0 {
+					scan_arr := depth.events[cur_node.start_idx:cur_node.start_idx+uint(cur_node.arr_len)]
+					for ev, de_id in scan_arr {
+						x := ev.timestamp - trace.total_min_time
+						duration := bound_duration(ev, thread.max_time)
+						w := max(duration * wide_scale_x, 2.0)
+						xm := x * wide_scale_x
+
+						// Carefully extract the [start, end] interval of the rect so that we can clip the left
+						// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
+						// problems drawing a rectangle which starts at a massively huge negative number on
+						// the left.
+						r_x   := x * wide_scale_x
+						end_x := r_x + w
+
+						r_x   += ui_state.side_pad
+						end_x += ui_state.side_pad
+
+						r_x    = max(r_x, 0)
+						r_w   := end_x - r_x
+
+						draw_rect(rects, rect(r_x, global_activity_rect.y, r_w, global_activity_rect.h), BVec4{u8(wide_rect_color.x), u8(wide_rect_color.y), u8(wide_rect_color.z), alpha})
+					}
+					continue
+				}
+
+				for i := cur_node.child_count - 1; i >= 0; i -= 1 {
+					tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
+				}
+			}
 		}
 	}
 
-	highlight_box_l := rect(start_x, wide_graph_y, highlight_start_x, wide_graph_height)
+	highlight_box_l := rect(ui_state.side_pad, global_activity_rect.y, highlight_start_x, global_activity_rect.h)
 	draw_rect(rects, highlight_box_l, BVec4{0, 0, 0, 150})
 
-	highlight_box_r := rect(start_x + highlight_end_x, wide_graph_y, display_width - highlight_end_x, wide_graph_height)
+	highlight_box_r := rect(ui_state.side_pad + highlight_end_x, global_activity_rect.y, full_flamegraph_rect.w - highlight_end_x, global_activity_rect.h)
 	draw_rect(rects, highlight_box_r, BVec4{0, 0, 0, 150})
 
-	draw_rect(rects, rect(0, wide_graph_y, start_x, wide_graph_height), BVec4{0, 0, 0, 255})
-	draw_rect(rects, rect(width - mini_graph_padded_width, wide_graph_y, mini_graph_padded_width, wide_graph_height), BVec4{0, 0, 0, 255})
+	draw_rect(rects, rect(0, global_activity_rect.y, ui_state.side_pad, global_activity_rect.h), BVec4{0, 0, 0, 255})
+	draw_rect(rects, rect(ui_state.width - minimap_rect.w, global_activity_rect.y, minimap_rect.w, global_activity_rect.h), BVec4{0, 0, 0, 255})
 }
 
-draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, rect_height, mini_graph_width, display_height, mini_start_x, mini_graph_pad, mini_graph_padded_width, graph_header_text_height: f64) {
+draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState) {
+	minimap_rect := ui_state.minimap_rect
+	full_flamegraph_rect   := ui_state.full_flamegraph_rect
+	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
+	flamegraph_toptext_height := ui_state.flamegraph_toptext_height
+	minimap_pad := em
+
 	// draw back-covers
-	draw_rect(rects, rect(mini_start_x, disp_rect.pos.y, mini_graph_width + (mini_graph_pad * 2), display_height), bg_color)
+	draw_rect(rects, minimap_rect, bg_color)
 
 	mini_rect_height := (em / 2)
 	mini_thread_gap := 8.0
-	x_scale := rescale(1.0, 0, trace.total_max_time - trace.total_min_time, 0, mini_graph_width)
-	y_scale := mini_rect_height / rect_height
+	x_scale := rescale(1.0, 0, trace.total_max_time - trace.total_min_time, 0, minimap_rect.w)
+	y_scale := mini_rect_height / ui_state.rect_height
 
-	tree_y : f64 = padded_graph_rect.pos.y - (cam.pan.y * y_scale)
+	tree_y : f64 = padded_flamegraph_rect.y - (cam.pan.y * y_scale)
 	for proc_v, p_idx in &trace.processes {
-		for tm, t_idx in &proc_v.threads {
-			for depth, d_idx in &tm.depths {
-				render_minitree(rects, trace, p_idx, t_idx, d_idx, mini_start_x + mini_graph_pad, (tree_y + (mini_rect_height * f64(d_idx))), mini_rect_height, x_scale)
+		for thread, t_idx in &proc_v.threads {
+			for depth, d_idx in &thread.depths {
+				tree := depth.tree
+
+				if len(tree) == 0 {
+					fmt.printf("depth_idx: %d, depth count: %d, %v\n", d_idx, len(thread.depths), thread.depths)
+					push_fatal(SpallError.Bug)
+				}
+
+				found_rid := -1
+				range_loop: for range, r_idx in trace.selected_ranges {
+					if range.pid == p_idx && range.tid == t_idx && range.did == d_idx {
+						found_rid = r_idx
+						break
+					}
+				}
+
+				y := tree_y + (mini_rect_height * f64(d_idx))
+
+				// If we blow this, we're in space
+				tree_stack := [128]uint{}
+				stack_len := 0
+
+				tree_stack[0] = depth.head; stack_len += 1
+				for stack_len > 0 {
+					stack_len -= 1
+
+					tree_idx := tree_stack[stack_len]
+					cur_node := tree[tree_idx]
+					range := cur_node.end_time - cur_node.start_time
+					range_width := range * x_scale
+
+					// draw summary faketangle
+					min_width := 2.0 
+					if (range_width / math.sqrt_f64(CHUNK_NARY_WIDTH)) < min_width {
+						x := cur_node.start_time
+						w := min_width * math.sqrt_f64(CHUNK_NARY_WIDTH)
+						xm := x * x_scale
+
+						r_x   := x * x_scale
+						end_x := r_x + w
+
+						r_x   += minimap_rect.x + minimap_pad
+						end_x += minimap_rect.x + minimap_pad
+
+						r_x    = max(r_x, 0)
+						r_w   := end_x - r_x
+
+						rect_color := cur_node.avg_color
+						grey := greyscale(cur_node.avg_color)
+						should_fade := false
+						if did_multiselect {
+							if found_rid == -1 { should_fade = true } 
+							else {
+								range := trace.selected_ranges[found_rid]	
+								if !range_in_range(cur_node.start_idx, cur_node.end_idx, uint(range.start), uint(range.end)) {
+									should_fade = true
+								}
+							}
+						}
+						if should_fade {
+							if multiselect_t != 0 && greyanim_t > 1 {
+								anim_playing = false
+								rect_color = grey
+							} else {
+								st := ease_in_out(greyanim_t)
+								rect_color = math.lerp(rect_color, grey, greymotion)
+							}
+						}
+
+						draw_rect(rects, rect(r_x, y, r_w, ui_state.rect_height), BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
+						continue
+					}
+
+					// we're at a bottom node, draw the whole thing
+					if cur_node.child_count == 0 {
+						scan_arr := depth.events[cur_node.start_idx:cur_node.start_idx+uint(cur_node.arr_len)]
+						for ev, de_id in scan_arr {
+							x := ev.timestamp - trace.total_min_time
+							duration := bound_duration(ev, thread.max_time)
+							w := max(duration * x_scale, 2.0)
+							xm := x * x_scale
+
+							// Carefully extract the [start, end] interval of the rect so that we can clip the left
+							// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
+							// problems drawing a rectangle which starts at a massively huge negative number on
+							// the left.
+							r_x   := x * x_scale
+							end_x := r_x + w
+
+							r_x   += minimap_rect.x + minimap_pad
+							end_x += minimap_rect.x + minimap_pad
+
+							r_x    = max(r_x, 0)
+							r_w   := end_x - r_x
+
+							idx := name_color_idx(trace, in_getstr(&trace.string_block, ev.name))
+							rect_color := trace.color_choices[idx]
+							e_idx := int(cur_node.start_idx) + de_id
+
+							grey := greyscale(trace.color_choices[idx])
+							should_fade := false
+							if did_multiselect {
+								if found_rid == -1 { should_fade = true } 
+								else {
+									range := trace.selected_ranges[found_rid]	
+									if !val_in_range(e_idx, range.start, range.end - 1) { should_fade = true }
+								}
+							}
+
+							if should_fade {
+								if multiselect_t != 0 && greyanim_t > 1 {
+									anim_playing = false
+									rect_color = grey
+								} else {
+									st := ease_in_out(greyanim_t)
+									rect_color = math.lerp(rect_color, grey, greymotion)
+								}
+							}
+
+							draw_rect(rects, rect(r_x, y, r_w, mini_rect_height), BVec4{u8(rect_color.x), u8(rect_color.y), u8(rect_color.z), 255})
+						}
+						continue
+					}
+
+					for i := cur_node.child_count - 1; i >= 0; i -= 1 {
+						tree_stack[stack_len] = cur_node.children[i]; stack_len += 1
+					}
+				}
 			}
 
-			tree_y += ((f64(len(tm.depths)) * mini_rect_height) + mini_thread_gap)
+			tree_y += ((f64(len(thread.depths)) * mini_rect_height) + mini_thread_gap)
 		}
 	}
 
-	preview_height := display_height * y_scale
+	preview_height := full_flamegraph_rect.h * y_scale
 
 	// alpha overlays
-	draw_rect(rects, rect(mini_start_x, disp_rect.pos.y, mini_graph_padded_width, preview_height), highlight_color)
-	draw_rect(rects, rect(mini_start_x, disp_rect.pos.y + preview_height, mini_graph_padded_width, display_height - preview_height), shadow_color)
+	draw_rect(rects, rect(minimap_rect.x, full_flamegraph_rect.y, minimap_rect.w, preview_height), highlight_color)
+	draw_rect(rects, rect(minimap_rect.x, full_flamegraph_rect.y + preview_height, minimap_rect.w, full_flamegraph_rect.h - preview_height), shadow_color)
 
 	// top-right cover-chunk
-	draw_rect(rects, rect(mini_start_x, disp_rect.pos.y, mini_graph_width + (mini_graph_pad * 2), graph_header_text_height), bg_color)
+	draw_rect(rects, rect(minimap_rect.x, full_flamegraph_rect.y, minimap_rect.w + (minimap_pad * 2), flamegraph_toptext_height), bg_color)
 }
 
-draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, width, height, display_width, graph_header_height, top_line_gap, start_x, toolbar_height, graph_header_text_height, time_bar_height, wide_graph_height, wide_graph_y, mini_graph_padded_width, start_time, end_time: f64) {
+draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, end_time: f64, ui_state: ^UIState) {
+	header_rect               := ui_state.header_rect
+	global_activity_rect      := ui_state.global_activity_rect
+	global_timebar_rect       := ui_state.global_timebar_rect
+	minimap_rect              := ui_state.minimap_rect
+	full_flamegraph_rect      := ui_state.full_flamegraph_rect
+	flamegraph_toptext_height := ui_state.flamegraph_toptext_height
+
+	//graph_header_text_height := (top_line_gap * 2) + em
+
 	// draw back-covers
-	draw_rect(rects, rect(0, toolbar_height, width, time_bar_height + wide_graph_height), bg_color) // top
-	draw_rect(rects, rect(0, toolbar_height, start_x, height), bg_color) // left
+	draw_rect(rects, rect(0, header_rect.h, ui_state.width, global_activity_rect.h + global_timebar_rect.h), bg_color) // top
+	draw_rect(rects, rect(0, header_rect.h, ui_state.side_pad, ui_state.height), bg_color) // left
 
-	draw_line(rects, Vec2{start_x, disp_rect.pos.y + graph_header_text_height}, 
-					  Vec2{width - mini_graph_padded_width, disp_rect.pos.y + graph_header_text_height}, 1, line_color)
+	draw_line(rects, Vec2{ui_state.side_pad, full_flamegraph_rect.y + flamegraph_toptext_height}, 
+					 Vec2{ui_state.width - minimap_rect.w, full_flamegraph_rect.y + flamegraph_toptext_height}, 1, line_color)
 
-	highlight_start_x := rescale(start_time, 0, trace.total_max_time - trace.total_min_time, 0, display_width)
-	highlight_end_x := rescale(end_time, 0, trace.total_max_time - trace.total_min_time, 0, display_width)
-	highlight_width := highlight_end_x - highlight_start_x
-	min_highlight := 5.0
+	highlight_start_x := rescale(start_time, 0, trace.total_max_time - trace.total_min_time, 0, full_flamegraph_rect.w)
+	highlight_end_x   := rescale(end_time, 0, trace.total_max_time - trace.total_min_time, 0, full_flamegraph_rect.w)
+	highlight_width   := highlight_end_x - highlight_start_x
+	min_highlight     := 5.0
 	if highlight_width < min_highlight {
 		high_center := (highlight_start_x + highlight_end_x) / 2
 		highlight_start_x = high_center - (min_highlight / 2)
 		highlight_end_x = high_center + (min_highlight / 2)
 	}
-	draw_widegraph(rects, trace, highlight_start_x, highlight_end_x, start_x, display_width, wide_graph_height, width, wide_graph_y, mini_graph_padded_width)
+	draw_global_activity(rects, trace, highlight_start_x, highlight_end_x, ui_state)
 
 	// global timebar
 	{
 		start_time : f64 = 0
 		end_time   := trace.total_max_time - trace.total_min_time
-		default_scale := rescale(1.0, start_time, end_time, 0, display_width)
+		default_scale := rescale(1.0, start_time, end_time, 0, full_flamegraph_rect.w)
 
-		mus_range := display_width / default_scale
+		mus_range := full_flamegraph_rect.w / default_scale
 		v1 := math.log10(mus_range)
 		v2 := math.floor(v1)
 		rem := v1 - v2
@@ -1101,8 +1115,8 @@ draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, width, height, di
 		if rem < 0.3      { division -= (division * 0.8); } // multiples of 2
 		else if rem < 0.6 { division -= (division / 2); } // multiples of 5
 
-		display_range_start := -width / default_scale
-		display_range_end := width / default_scale
+		display_range_start := -ui_state.width / default_scale
+		display_range_end := ui_state.width / default_scale
 
 		draw_tick_start := f_round_down(display_range_start, division)
 		draw_tick_end := f_round_down(display_range_end, division)
@@ -1122,40 +1136,52 @@ draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, width, height, di
 
 				draw_text(rects, time_str, 
 					Vec2{
-						start_x + x_off - (text_width / 2),
-						toolbar_height + (time_bar_height / 2) - (em / 2),
+						ui_state.side_pad + x_off - (text_width / 2),
+						header_rect.h + (global_timebar_rect.h / 2) - (em / 2),
 					}, .PSize, .DefaultFont, text_color)
-				line_start_y = toolbar_height + (time_bar_height / 2) - (em / 2) + p_height
+				line_start_y = header_rect.h + (global_timebar_rect.h / 2) - (em / 2) + p_height
 			} else {
-				line_start_y = toolbar_height + (time_bar_height / 2) - (em / 2) + p_height + (p_height / 6)
+				line_start_y = header_rect.h + (global_timebar_rect.h / 2) - (em / 2) + p_height + (p_height / 6)
 			}
 
 			draw_line(rects,
-				Vec2{start_x + x_off, line_start_y}, 
-				Vec2{start_x + x_off, toolbar_height + time_bar_height - 2}, 2, division_color)
+				Vec2{ui_state.side_pad + x_off, line_start_y}, 
+				Vec2{ui_state.side_pad + x_off, header_rect.h + global_timebar_rect.h - 2}, 2, division_color)
 		}
 
-		draw_line(rects, Vec2{start_x + highlight_start_x, toolbar_height + (time_bar_height / 2) - (em / 2) + p_height}, Vec2{start_x + highlight_start_x, toolbar_height + time_bar_height + wide_graph_height}, 2, xbar_color)
-		draw_line(rects, Vec2{start_x + highlight_end_x, toolbar_height + (time_bar_height / 2) - (em / 2) + p_height}, Vec2{start_x + highlight_end_x, toolbar_height + time_bar_height + wide_graph_height}, 2, xbar_color)
-		draw_line(rects, Vec2{0, toolbar_height + time_bar_height + wide_graph_height}, Vec2{width, toolbar_height + time_bar_height + wide_graph_height}, 1, line_color)
+		draw_line(rects, 
+			Vec2{ui_state.side_pad + highlight_start_x, header_rect.h + (global_timebar_rect.h / 2) - (em / 2) + p_height},
+			Vec2{ui_state.side_pad + highlight_start_x, header_rect.h + global_timebar_rect.h + global_activity_rect.h}, 2, xbar_color)
+		draw_line(rects, 
+			Vec2{ui_state.side_pad + highlight_end_x, header_rect.h + (global_timebar_rect.h / 2) - (em / 2) + p_height}, 
+			Vec2{ui_state.side_pad + highlight_end_x, header_rect.h + global_timebar_rect.h + global_activity_rect.h}, 2, xbar_color)
+		draw_line(rects, 
+			Vec2{0, header_rect.h + global_timebar_rect.h + global_activity_rect.h}, 
+			Vec2{ui_state.width, header_rect.h + global_timebar_rect.h + global_activity_rect.h}, 1, line_color)
 	}
 }
 
 INITIAL_ITER :: 500_000
 FULL_ITER    :: 2_000_000
-draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_pane_height, top_line_gap, x_subpad, width, height, display_width: f64, info_line_count: int, just_started: bool) {
+draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_line_count: int, just_started: bool, ui_state: ^UIState) {
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
+	info_pane_rect := ui_state.info_pane_rect
+
 	// Render info pane back-covers
-	draw_line(rects, Vec2{0, info_pane_y}, Vec2{width, info_pane_y}, 1, line_color)
-	draw_rect(rects, rect(0, info_pane_y, width, height), bg_color) // bottom
+	draw_line(rects, Vec2{0, info_pane_rect.y}, Vec2{ui_state.width, info_pane_rect.y}, 1, line_color)
+	draw_rect(rects, info_pane_rect, bg_color) // bottom
+
+	x_subpad := em
 
 	// If the user selected a single rectangle
 	if selected_event.pid != -1 && selected_event.tid != -1 && selected_event.did != -1 && selected_event.eid != -1 {
+		y := info_pane_rect.y + ui_state.top_line_gap
+
 		p_idx := int(selected_event.pid)
 		t_idx := int(selected_event.tid)
 		d_idx := int(selected_event.did)
 		e_idx := int(selected_event.eid)
-
-		y := info_pane_y + top_line_gap
 
 		thread := trace.processes[p_idx].threads[t_idx]
 		event := thread.depths[d_idx].events[e_idx]
@@ -1169,8 +1195,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 
 	// If we've got stats cooking already
 	} else if stats_state == .Pass1 || stats_state == .Pass2 {
-		y := info_pane_y + top_line_gap
-		center_x := width / 2
+		y := info_pane_rect.y + ui_state.top_line_gap
+		center_x := ui_state.width / 2
 		
 		total_count := 0
 		cur_count := 0
@@ -1201,7 +1227,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			next_line(&max_height, em)
 		}
 
-		cur_y := y + ((height - y) / 2) - (max_height / 2)
+		cur_y := y + ((ui_state.height - y) / 2) - (max_height / 2)
 		for str in strs {
 			str_width := measure_text(str, .PSize, .DefaultFont)
 			draw_text(rects, str, Vec2{center_x - (str_width / 2), next_line(&cur_y, em)}, .PSize, .DefaultFont, text_color)
@@ -1209,7 +1235,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 
 	// If stats are ready to display
 	} else if stats_state == .Finished && did_multiselect {
-		y := info_pane_y + top_line_gap
+		y := info_pane_rect.y + ui_state.top_line_gap
 
 		header_start := y
 		header_height := 2 * em
@@ -1250,12 +1276,12 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			stat := entry.val
 
 			stat_idx += 1
-			if y < (info_pane_y + (em / 2)) {
+			if y < (info_pane_rect.y + (em / 2)) {
 				next_line(&y, em)
 				continue stat_loop
 			}
 
-			if y > height {
+			if y > ui_state.height {
 				break stat_loop
 			}
 			last_pos = y
@@ -1264,7 +1290,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			y_after    := y_before
 			next_line(&y_after, em)
 
-			click_rect := rect(0, y_before, width, 2 * em)
+			click_rect := rect(0, y_before, ui_state.width, 2 * em)
 			if pt_in_rect(mouse_pos, click_rect) {
 				set_cursor("pointer")
 			}
@@ -1309,7 +1335,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			text_outf(rects, &cursor, y, max_text, text_color2);   cursor += column_gap
 			text_outf(rects, &cursor, y, count_text, text_color2);   cursor += column_gap
 
-			dr := rect(cursor, y_before, (display_width - cursor - column_gap) * stat.total_time / full_time, y_after - y_before)
+			dr := rect(cursor, y_before, (full_flamegraph_rect.w - cursor - column_gap) * stat.total_time / full_time, y_after - y_before)
 			cursor += column_gap / 2
 
 			name_str := in_getstr(&trace.string_block, name)
@@ -1326,8 +1352,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 			line_gap := (em / 1.5)
 			edge_gap := (em / 2)
 			pos := Vec2{
-				(graph_rect.pos.x + graph_rect.size.x) - histogram_height - edge_gap,
-				info_pane_y - histogram_height - ((em + line_gap) * 2) - edge_gap,
+				(inner_flamegraph_rect.x + inner_flamegraph_rect.w) - histogram_height - edge_gap,
+				info_pane_rect.y - histogram_height - ((em + line_gap) * 2) - edge_gap,
 			}
 
 			name_str := in_getstr(&trace.string_block, selected_func)
@@ -1340,8 +1366,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 		y = header_start
 		cursor = 0
 
-		draw_rect(rects, rect(0, info_pane_y, width, 2 * em), subbar_color)
-		draw_line(rects, Vec2{0, info_pane_y + (2 * em)}, Vec2{width, info_pane_y + (2 * em)}, 1, line_color)
+		draw_rect(rects, rect(0, info_pane_rect.y, ui_state.width, 2 * em), subbar_color)
+		draw_line(rects, Vec2{0, info_pane_rect.y + (2 * em)}, Vec2{ui_state.width, info_pane_rect.y + (2 * em)}, 1, line_color)
 
 		column_header :: proc(rects: ^[dynamic]DrawRect, cursor: ^f64, column_gap, text_y, rect_y, pane_h: f64, text: string, sort_type: SortState) {
 			start_x := cursor^
@@ -1378,36 +1404,41 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_pane_y, info_p
 		}
 
 		self_header_text   := fmt.tprintf("%-10s", "   self")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, self_header_text, .SelfTime)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, self_header_text, .SelfTime)
 
 		total_header_text  := fmt.tprintf("%-17s", "      total")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, total_header_text, .TotalTime)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, total_header_text, .TotalTime)
 
 		min_header_text    := fmt.tprintf("%-10s", "   min.")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, min_header_text, .MinTime)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, min_header_text, .MinTime)
 
 		avg_header_text    := fmt.tprintf("%-10s", "   avg.")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, avg_header_text, .AvgTime)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, avg_header_text, .AvgTime)
 
 		max_header_text    := fmt.tprintf("%-10s", "   max.")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, max_header_text, .MaxTime)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, max_header_text, .MaxTime)
 
 		max_count_text    := fmt.tprintf("%-10s", "   count")
-		column_header(rects, &cursor, column_gap, y, info_pane_y, info_pane_height, max_count_text, .Count)
+		column_header(rects, &cursor, column_gap, y, info_pane_rect.y, info_pane_rect.h, max_count_text, .Count)
 
 		name_header_text   := fmt.tprintf("%-10s", "   name")
 		text_outf(rects, &cursor, y, name_header_text, text_color)
 	} else {
-		y := height - em - top_line_gap
+		y := ui_state.height - em - ui_state.top_line_gap
 
 		draw_text(rects, "Shift-click and drag to get stats for multiple rectangles", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
 		draw_text(rects, "Click on a rectangle to inspect", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
 	}
 }
 
-process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta: Vec2, dt, info_pane_y, rect_height: f64) -> (just_started, render_one_more: bool) {
+process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta: Vec2, dt: f64, ui_state: ^UIState) -> (just_started, render_one_more: bool) {
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
+	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
+	info_pane_rect := ui_state.info_pane_rect
+
 	// Handle single-select
-	if mouse_up_now && !did_pan && pt_in_rect(clicked_pos, graph_rect) && pressed_event == released_event && !shift_down {
+	if mouse_up_now && !did_pan && pt_in_rect(clicked_pos, inner_flamegraph_rect) && pressed_event == released_event && !shift_down {
 		selected_event = released_event
 		clicked_on_rect = true
 		did_multiselect = false
@@ -1415,7 +1446,7 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 	}
 
 	// Handle de-select
-	if mouse_up_now && !did_pan && pt_in_rect(clicked_pos, graph_rect) && !clicked_on_rect && !shift_down {
+	if mouse_up_now && !did_pan && pt_in_rect(clicked_pos, inner_flamegraph_rect) && !clicked_on_rect && !shift_down {
 		selected_event = {-1, -1, -1, -1}
 		resize(&trace.selected_ranges, 0)
 
@@ -1447,16 +1478,16 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 
 		// cap multi-select box at graph edges
 		delta := mouse_pos_extrapolated - clicked_pos
-		c_x := min(clicked_pos.x, graph_rect.pos.x + graph_rect.size.x)
-		c_x = max(c_x, graph_rect.pos.x)
+		c_x := min(clicked_pos.x, inner_flamegraph_rect.x + inner_flamegraph_rect.w)
+		c_x = max(c_x, inner_flamegraph_rect.x)
 
-		c_y := min(clicked_pos.y, graph_rect.pos.y + graph_rect.size.y)
-		c_y = max(c_y, graph_rect.pos.y)
+		c_y := min(clicked_pos.y, inner_flamegraph_rect.y + inner_flamegraph_rect.h)
+		c_y = max(c_y, inner_flamegraph_rect.y)
 
-		m_x := min(c_x + delta.x, graph_rect.pos.x + graph_rect.size.x)
-		m_x = max(m_x, graph_rect.pos.x)
-		m_y := min(c_y + delta.y, graph_rect.pos.y + graph_rect.size.y)
-		m_y = max(m_y, graph_rect.pos.y)
+		m_x := min(c_x + delta.x, inner_flamegraph_rect.x + inner_flamegraph_rect.w)
+		m_x = max(m_x, inner_flamegraph_rect.x)
+		m_y := min(c_y + delta.y, inner_flamegraph_rect.y + inner_flamegraph_rect.h)
+		m_y = max(m_y, inner_flamegraph_rect.y)
 
 		d_x := m_x - c_x
 		d_y := m_y - c_y
@@ -1470,35 +1501,35 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 
 		// transform multiselect rect to screen position
 		flopped_rect := Rect{}
-		flopped_rect.pos.x = min(selected_rect.pos.x, selected_rect.pos.x + selected_rect.size.x)
-		x2 := max(selected_rect.pos.x, selected_rect.pos.x + selected_rect.size.x)
-		flopped_rect.size.x = x2 - flopped_rect.pos.x
+		flopped_rect.x = min(selected_rect.x, selected_rect.x + selected_rect.w)
+		x2 := max(selected_rect.x, selected_rect.x + selected_rect.w)
+		flopped_rect.w = x2 - flopped_rect.x
 
-		flopped_rect.pos.y = min(selected_rect.pos.y, selected_rect.pos.y + selected_rect.size.y)
-		y2 := max(selected_rect.pos.y, selected_rect.pos.y + selected_rect.size.y)
-		flopped_rect.size.y = y2 - flopped_rect.pos.y
+		flopped_rect.h = min(selected_rect.y, selected_rect.y + selected_rect.h)
+		y2 := max(selected_rect.y, selected_rect.y + selected_rect.h)
+		flopped_rect.h = y2 - flopped_rect.y
 
-		selected_start_time := to_world_x(cam, flopped_rect.pos.x - disp_rect.pos.x)
-		selected_end_time   := to_world_x(cam, flopped_rect.pos.x - disp_rect.pos.x + flopped_rect.size.x)
+		selected_start_time := to_world_x(cam, flopped_rect.x - full_flamegraph_rect.x)
+		selected_end_time   := to_world_x(cam, flopped_rect.x - full_flamegraph_rect.x + flopped_rect.w)
 
 		// draw multiselect timerange
 		width_text := measure_fmt(selected_end_time - selected_start_time)
 		width_text_width := measure_text(width_text, .PSize, .MonoFont) + em
 
 		text_bg_rect := flopped_rect
-		text_bg_rect.pos.x = text_bg_rect.pos.x + (text_bg_rect.size.x / 2) - (width_text_width / 2)
-		text_bg_rect.pos.y = text_bg_rect.pos.y - (p_height * 2)
-		text_bg_rect.size.x = width_text_width
-		text_bg_rect.size.y = (p_height * 2)
+		text_bg_rect.x = text_bg_rect.x + (text_bg_rect.w / 2) - (width_text_width / 2)
+		text_bg_rect.y = text_bg_rect.y - (p_height * 2)
+		text_bg_rect.w = width_text_width
+		text_bg_rect.h = (p_height * 2)
 
-		if flopped_rect.size.x > text_bg_rect.size.x {
+		if flopped_rect.w > text_bg_rect.w {
 			multiselect_color.w = 180
 			draw_rect(rects, text_bg_rect, multiselect_color)
 			draw_text(rects,
 				width_text, 
 				Vec2{
-					text_bg_rect.pos.x + (em / 2), 
-					text_bg_rect.pos.y + (p_height / 2),
+					text_bg_rect.x + (em / 2), 
+					text_bg_rect.y + (p_height / 2),
 				}, 
 				.PSize,
 				.MonoFont,
@@ -1507,13 +1538,13 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 		}
 
 		// push it into screen-space
-		flopped_rect.pos.x -= disp_rect.pos.x
+		flopped_rect.x -= full_flamegraph_rect.x
 
 		sm_clear(&trace.stats)
 		resize(&trace.selected_ranges, 0)
 
 		// build out ranges
-		cur_y := padded_graph_rect.pos.y - cam.pan.y
+		cur_y := padded_flamegraph_rect.y - cam.pan.y
 		proc_loop2: for proc_v, p_idx in trace.processes {
 			h1_size : f64 = 0
 			if len(trace.processes) > 1 {
@@ -1521,26 +1552,26 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 				cur_y += h1_size
 			}
 
-			for tm, t_idx in proc_v.threads {
+			for thread, t_idx in proc_v.threads {
 				h2_size := h2_height + (h2_height / 2)
 				cur_y += h2_size
-				if cur_y > info_pane_y {
+				if cur_y > info_pane_rect.y {
 					break proc_loop2
 				}
 
-				thread_advance := ((f64(len(tm.depths)) * rect_height) + thread_gap)
+				thread_advance := ((f64(len(thread.depths)) * ui_state.rect_height) + thread_gap)
 				if cur_y + thread_advance < 0 {
 					cur_y += thread_advance
 					continue
 				}
 
-				for depth, d_idx in tm.depths {
-					y := rect_height * f64(d_idx)
-					h := rect_height
+				for depth, d_idx in thread.depths {
+					y := ui_state.rect_height * f64(d_idx)
+					h := ui_state.rect_height
 
 					dy := cur_y + y
 					dy2 := cur_y + y + h
-					if dy > (flopped_rect.pos.y + flopped_rect.size.y) || dy2 < flopped_rect.pos.y {
+					if dy > (flopped_rect.y + flopped_rect.h) || dy2 < flopped_rect.y {
 						continue
 					}
 
@@ -1559,13 +1590,13 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 						ev := scan_arr[i]
 						x := ev.timestamp - trace.total_min_time
 
-						duration := bound_duration(ev, tm.max_time)
+						duration := bound_duration(ev, thread.max_time)
 						w := duration * cam.current_scale
 
-						r := Rect{Vec2{x, y}, Vec2{w, h}}
-						r_x := (r.pos.x * cam.current_scale) + cam.pan.x
-						r_y := cur_y + r.pos.y
-						dr := Rect{Vec2{r_x, r_y}, Vec2{r.size.x, r.size.y}}
+						r := rect(x, y, w, h)
+						r_x := (r.x * cam.current_scale) + cam.pan.x
+						r_y := cur_y + r.y
+						dr := rect(r_x, r_y, r.w, r.h)
 
 						if !rect_in_rect(flopped_rect, dr) {
 							continue fwd_scan_loop
@@ -1580,13 +1611,13 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 						ev := scan_arr[i]
 						x := ev.timestamp - trace.total_min_time
 
-						duration := bound_duration(ev, tm.max_time)
+						duration := bound_duration(ev, thread.max_time)
 						w := duration * cam.current_scale
 
-						r := Rect{Vec2{x, y}, Vec2{w, h}}
-						r_x := (r.pos.x * cam.current_scale) + cam.pan.x
-						r_y := cur_y + r.pos.y
-						dr := Rect{Vec2{r_x, r_y}, Vec2{r.size.x, r.size.y}}
+						r := rect(x, y, w, h)
+						r_x := (r.x * cam.current_scale) + cam.pan.x
+						r_y := cur_y + r.y
+						dr := rect(r_x, r_y, r.w, r.h)
 
 						if !rect_in_rect(flopped_rect, dr) {
 							continue rev_scan_loop
@@ -1763,20 +1794,26 @@ sort_stats :: proc(trace: ^Trace) {
 	sm_sort(&trace.stats, less)
 }
 
-process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, display_width, rect_height, start_x: f64) -> (f64, f64, Vec2) {
+process_inputs :: proc(trace: ^Trace, dt: f64, ui_state: ^UIState) -> (f64, f64, Vec2) {
+	info_pane_rect  := ui_state.info_pane_rect
+	minimap_rect    := ui_state.minimap_rect
+	full_flamegraph_rect := ui_state.full_flamegraph_rect
+	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
+	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
+
 	start_time, end_time: f64
 	pan_delta: Vec2
 	{
 		old_scale := cam.target_scale
 
 		max_scale := 10000000.0
-		min_scale := 0.5 * display_width / (trace.total_max_time - trace.total_min_time)
-		if pt_in_rect(mouse_pos, graph_rect) {
+		min_scale := 0.5 * full_flamegraph_rect.w / (trace.total_max_time - trace.total_min_time)
+		if pt_in_rect(mouse_pos, inner_flamegraph_rect) {
 			cam.target_scale *= math.pow(1.0025, -scroll_val_y)
 			cam.target_scale  = min(max(cam.target_scale, min_scale), max_scale)
-		} else if pt_in_rect(mouse_pos, stat_pane) {
+		} else if pt_in_rect(mouse_pos, info_pane_rect) {
 			info_pane_scroll_vel -= scroll_val_y * 10
-		} else if pt_in_rect(mouse_pos, mini_graph_rect) {
+		} else if pt_in_rect(mouse_pos, minimap_rect) {
 			cam.vel.y += scroll_val_y * 10
 		}
 		scroll_val_y = 0
@@ -1788,7 +1825,7 @@ process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, disp
 		cam.current_scale += (cam.target_scale - cam.current_scale) * (1 - math.pow(math.pow_f64(0.1, 12), (dt)))
 		cam.current_scale = min(max(cam.current_scale, min_scale), max_scale)
 
-		last_start_time, last_end_time := get_current_window(cam, display_width)
+		last_start_time, last_end_time := get_current_window(cam, ui_state)
 
 		get_max_y_pan :: proc(processes: []Process, rect_height: f64) -> f64 {
 			cur_y : f64 = 0
@@ -1807,11 +1844,11 @@ process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, disp
 
 			return cur_y
 		}
-		max_height := get_max_y_pan(trace.processes[:], rect_height)
-		max_y_pan := max(+20 * em + max_height - graph_rect.size.y, 0)
+		max_height := get_max_y_pan(trace.processes[:], ui_state.rect_height)
+		max_y_pan := max(+20 * em + max_height - inner_flamegraph_rect.h, 0)
 		min_y_pan := min(-20 * em, max_y_pan)
 		max_x_pan := max(+20 * em, 0)
-		min_x_pan := min(-20 * em + display_width + -(trace.total_max_time - trace.total_min_time) * cam.target_scale, max_x_pan)
+		min_x_pan := min(-20 * em + full_flamegraph_rect.w + -(trace.total_max_time - trace.total_min_time) * cam.target_scale, max_x_pan)
 
 		// compute pan, scale + scroll
 		if is_mouse_down || mouse_up_now {
@@ -1827,7 +1864,7 @@ process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, disp
 		}
 
 		if is_mouse_down && !shift_down {
-			if pt_in_rect(clicked_pos, padded_graph_rect) {
+			if pt_in_rect(clicked_pos, padded_flamegraph_rect) {
 
 				if cam.target_pan_x < min_x_pan {
 					pan_delta.x *= math.pow_f64(2, (cam.target_pan_x - min_x_pan) / 32)
@@ -1849,7 +1886,7 @@ process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, disp
 		}
 
 
-		cam_mouse_x := mouse_pos.x - start_x
+		cam_mouse_x := mouse_pos.x - ui_state.side_pad
 
 		if cam.target_scale != old_scale {
 			cam.target_pan_x = ((cam.target_pan_x - cam_mouse_x) * (cam.target_scale / old_scale)) + cam_mouse_x
@@ -1885,7 +1922,7 @@ process_inputs :: proc(trace: ^Trace, stat_pane, mini_graph_rect: Rect, dt, disp
 		}
 
 		cam.pan.x = cam.target_pan_x + (cam.pan.x - cam.target_pan_x) * math.pow(math.pow_f64(0.1, 12.0), dt)
-		start_time, end_time = get_current_window(cam, display_width)
+		start_time, end_time = get_current_window(cam, ui_state)
 	}
 
 	return start_time, end_time, pan_delta

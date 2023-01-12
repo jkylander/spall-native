@@ -66,10 +66,6 @@ total_tracked_time := 0.0
 
 // drawing state
 colormode      := ColorMode.Dark
-disp_rect: Rect
-graph_rect: Rect
-padded_graph_rect: Rect
-
 default_cursor: ^SDL.Cursor
 pointer_cursor: ^SDL.Cursor
 
@@ -137,13 +133,13 @@ to_world_pos :: proc(cam: Camera, pos: Vec2) -> Vec2 {
 	return Vec2{to_world_x(cam, pos.x), to_world_y(cam, pos.y)}
 }
 
-get_current_window :: proc(cam: Camera, display_width: f64) -> (f64, f64) {
+get_current_window :: proc(cam: Camera, ui_state: ^UIState) -> (f64, f64) {
 	display_range_start := to_world_x(cam, 0)
-	display_range_end   := to_world_x(cam, display_width)
+	display_range_end   := to_world_x(cam, ui_state.full_flamegraph_rect.w)
 	return display_range_start, display_range_end
 }
 
-reset_camera :: proc(trace: ^Trace, display_width: f64) {
+reset_flamegraph_camera :: proc(trace: ^Trace, ui_state: ^UIState) {
 	cam = Camera{Vec2{0, 0}, Vec2{0, 0}, 0, 1, 1}
 	if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 1000 }
 
@@ -152,7 +148,7 @@ reset_camera :: proc(trace: ^Trace, display_width: f64) {
 
 	side_pad  := 2 * em
 
-	cam.current_scale = rescale(cam.current_scale, start_time, end_time, 0, display_width - (side_pad * 2))
+	cam.current_scale = rescale(cam.current_scale, start_time, end_time, 0, ui_state.full_flamegraph_rect.w - (side_pad * 2))
 	cam.target_scale = cam.current_scale
 
 	cam.pan.x += side_pad
@@ -348,6 +344,8 @@ main :: proc() {
 
 		should_toggle_fullscreen := false
 
+		ui_state := UIState{}
+
 		// event polling
 		event: SDL.Event = ---
 		first := true
@@ -498,18 +496,18 @@ main :: proc() {
 
 			load_box := rect(0, 0, 100, 100)
 			load_box = rect(
-				(width / 2) - (load_box.size.x / 2) - pad_size, 
-				(height / 2) - (load_box.size.y / 2) - pad_size, 
-				load_box.size.x + pad_size, 
-				load_box.size.y + pad_size,
+				(width / 2) - (load_box.w / 2) - pad_size, 
+				(height / 2) - (load_box.h / 2) - pad_size, 
+				load_box.w + pad_size, 
+				load_box.h + pad_size,
 			)
 
 			draw_rect(&rects, load_box, BVec4{30, 30, 30, 255})
 			chunk_count := int(rescale(f64(offset), 0, f64(size), 0, 100))
 
 			chunk := rect(0, 0, chunk_size, chunk_size)
-			start_x := load_box.pos.x + pad_size
-			start_y := load_box.pos.y + pad_size
+			start_x := load_box.x + pad_size
+			start_y := load_box.y + pad_size
 			for i := chunk_count; i >= 0; i -= 1 {
 				cur_x := f64(i %% int(chunk_size))
 				cur_y := f64(i /  int(chunk_size))
@@ -526,47 +524,53 @@ main :: proc() {
 			continue
 		}
 
+		spall_x_pad     := 3 * em
+		header_height   := 3 * em
+		activity_height := 2 * em
+		timebar_height  := 3 * em
+		rect_height     := em + (0.75 * em)
+		top_line_gap    := (em / 1.5)
 
-
-		// Start the drawing madness
-		rect_height := em + (0.75 * em)
-		top_line_gap := (em / 1.5)
-		toolbar_height := 3 * em
-
-		pane_y : f64 = 0
-
+		info_pane_height : f64 = 0
 		info_line_count := 7
 		for i := 0; i < info_line_count; i += 1 {
-			next_line(&pane_y, em)
+			next_line(&info_pane_height, em)
 		}
 
-		x_pad_size := 3 * em
-		x_subpad := em
+		topbars_height    := header_height + timebar_height + activity_height
+		minigraph_width   := 15 * em
+		flamegraph_width  := width - (spall_x_pad + minigraph_width)
+		flamegraph_height := height - topbars_height - info_pane_height
 
-		info_pane_height := pane_y + top_line_gap
-		info_pane_y := height - info_pane_height
-		
-		mini_graph_width := 15 * em
-		mini_graph_pad := (em)
-		mini_graph_padded_width := mini_graph_width + (mini_graph_pad * 2)
-		mini_start_x := width - mini_graph_padded_width
+		ui_state.height = height
+		ui_state.width  = width
+		ui_state.side_pad                  = spall_x_pad
+		ui_state.rect_height               = rect_height
+		ui_state.topbars_height            = topbars_height
+		ui_state.top_line_gap              = top_line_gap
+		ui_state.flamegraph_toptext_height = (ui_state.top_line_gap * 2) + em
+		ui_state.flamegraph_header_height  = ui_state.flamegraph_toptext_height + em
 
-		time_bar_y := toolbar_height
-		time_bar_height := (top_line_gap * 2) + em
+		ui_state.header_rect             = rect(0, 0, width, header_height)
+		ui_state.global_timebar_rect     = rect(0, header_height, width, timebar_height)
+		ui_state.global_activity_rect    = rect(spall_x_pad, header_height + timebar_height, flamegraph_width, activity_height)
+		ui_state.local_timebar_rect      = rect(spall_x_pad, header_height + timebar_height + activity_height, flamegraph_width, timebar_height)
+		ui_state.minimap_rect            = rect(width - minigraph_width, topbars_height, minigraph_width, flamegraph_height)
+		ui_state.info_pane_rect          = rect(0, height - info_pane_height, width, info_pane_height)
 
-		wide_graph_y := time_bar_y + time_bar_height
-		wide_graph_height := (em * 2)
+		ui_state.full_flamegraph_rect   = rect(spall_x_pad, topbars_height, flamegraph_width, flamegraph_height)
 
-		start_x := x_pad_size
-		end_x := width - x_pad_size
-		display_width := width - (start_x + mini_graph_padded_width)
-		start_y := toolbar_height + time_bar_height + wide_graph_height
-		end_y   := info_pane_y
-		display_height := end_y - start_y
+		ui_state.inner_flamegraph_rect  = ui_state.full_flamegraph_rect
+		ui_state.inner_flamegraph_rect.y += ui_state.flamegraph_header_height
+		ui_state.inner_flamegraph_rect.h -= ui_state.flamegraph_header_height
+
+		ui_state.padded_flamegraph_rect = ui_state.inner_flamegraph_rect
+		ui_state.padded_flamegraph_rect.y += em
+		ui_state.padded_flamegraph_rect.h -= em
 
 		if post_loading {
 			if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 1000 }
-			reset_camera(trace, display_width)
+			reset_flamegraph_camera(trace, &ui_state)
 
 			if trace.file_name != "" {
 				name := fmt.ctprintf("%s - spall", trace.base_name)
@@ -575,58 +579,36 @@ main :: proc() {
 			post_loading = false
 		}
 
-		graph_header_text_height := (top_line_gap * 2) + em
-		graph_header_line_gap := em
-		graph_header_height := graph_header_text_height + graph_header_line_gap
-		max_x := width - x_pad_size
-
-		disp_rect = rect(start_x, start_y, display_width, display_height)
-		graph_rect = disp_rect
-		graph_rect.pos.y += graph_header_text_height
-		graph_rect.size.y -= graph_header_text_height
-		padded_graph_rect = graph_rect
-		padded_graph_rect.pos.y += graph_header_line_gap
-		padded_graph_rect.size.y -= graph_header_line_gap
-		stat_pane := rect(0, info_pane_y, width, height - info_pane_y)
-
-		mini_graph_rect := rect(mini_start_x, graph_rect.pos.y, mini_graph_padded_width, display_height - graph_header_text_height)
-
 		// process key/mouse inputs
 		if clicked {
 			did_pan = false
 			pressed_event = {-1, -1, -1, -1} // so no stale events are tracked
 		}
-		start_time, end_time, pan_delta := process_inputs(trace, stat_pane, mini_graph_rect, dt, display_width, rect_height, start_x)
+		start_time, end_time, pan_delta := process_inputs(trace, dt, &ui_state)
 
 		clicked_on_rect = false
 		rect_count = 0
 		bucket_count = 0
 
-		draw_flamegraphs(&rects, &text_rects, trace,
-			start_time, end_time, start_x, rect_height, info_pane_y,
-			graph_header_height, graph_header_text_height, top_line_gap, display_width)
+		draw_flamegraphs(&rects, &text_rects, trace, start_time, end_time, &ui_state)
  
-		draw_minimap(&rects, trace,
-			rect_height, mini_graph_width, display_height, mini_start_x, 
-			mini_graph_pad, mini_graph_padded_width, graph_header_text_height)
+		draw_minimap(&rects, trace, &ui_state)
+		draw_topbars(&rects, trace, start_time, end_time, &ui_state)
 
-		draw_topbars(&rects, trace, 
-			width, height, display_width, graph_header_height, top_line_gap, 
-			start_x, toolbar_height, graph_header_text_height, time_bar_height, 
-			wide_graph_height, wide_graph_y, mini_graph_padded_width, start_time, end_time)
-
+		/*
 		// draw sidelines
 		draw_line(&rects, Vec2{start_x, toolbar_height + time_bar_height}, Vec2{start_x, info_pane_y}, 1, line_color)
 		draw_line(&rects, Vec2{mini_start_x, toolbar_height + time_bar_height}, Vec2{mini_start_x, info_pane_y}, 1, line_color)
+		*/
 
-		just_started, render_one_more := process_multiselect(&rects, trace, pan_delta, dt, info_pane_y, rect_height)
-		draw_stats(&rects, trace, info_pane_y, info_pane_height, top_line_gap, x_subpad, width, height, display_width, info_line_count, just_started)
+		just_started, render_one_more := process_multiselect(&rects, trace, pan_delta, dt, &ui_state)
+		draw_stats(&rects, trace, info_line_count, just_started, &ui_state)
 		if resort_stats {
 			sort_stats(trace)
 			resort_stats = false
 		}
 
-		draw_toolbar(&rects, trace, toolbar_height, width, display_width)
+		draw_header(&rects, trace, &ui_state)
 
 		// reset the cursor if we're not over a selectable thing
 		if !is_hovering {
@@ -634,14 +616,12 @@ main :: proc() {
 		}
 
 		if enable_debug {
-			text_y := height - em - top_line_gap
-			graph_pos := Vec2{width - mini_graph_padded_width - 150, disp_rect.pos.y + graph_header_height}
-			draw_debug(&rects, width, text_y, x_subpad, graph_pos)
+			draw_debug(&rects, &ui_state)
 		}
 
 		// if there's a rectangle tooltip to render, now's the time.
 		if rendered_rect_tooltip {
-			draw_rect_tooltip(&rects, trace, dpr)
+			draw_rect_tooltip(&rects, trace, &ui_state)
 		}
 
 		// Phew... Ok, time to dump to the screen

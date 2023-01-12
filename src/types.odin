@@ -10,12 +10,37 @@ FVec4 :: [4]f32
 BVec4 :: [4]u8
 
 Rect :: struct {
-	pos: Vec2,
-	size: Vec2,
+	x: f64,
+	y: f64,
+	w: f64,
+	h: f64,
 }
 rect :: #force_inline proc(x, y, w, h: f64) -> Rect {
-	return Rect{Vec2{x, y}, Vec2{w, h}}
+	return Rect{x, y, w, h}
 }
+
+UIState :: struct {
+	width: f64,
+	height: f64,
+	side_pad: f64,
+	rect_height: f64,
+	top_line_gap: f64,
+	topbars_height: f64,
+	flamegraph_header_height: f64,
+	flamegraph_toptext_height: f64,
+
+	header_rect:          Rect,
+	global_activity_rect: Rect,
+	global_timebar_rect:  Rect,
+	local_timebar_rect:   Rect,
+	info_pane_rect:       Rect,
+	minimap_rect:         Rect,
+
+	full_flamegraph_rect:   Rect,
+	inner_flamegraph_rect:  Rect,
+	padded_flamegraph_rect: Rect,
+}
+
 DrawRect :: struct #packed {
 	pos: FVec4,
 	color: BVec4,
