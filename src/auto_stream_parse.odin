@@ -5,7 +5,23 @@ import "core:strings"
 import "core:slice"
 import "core:mem"
 import "core:os"
+import "core:strconv"
 import "formats:spall"
+
+as_get_next_buffer :: proc(trace: ^Trace, chunk: []u8, buffer_header: ^spall.BufferHeader) -> BinaryState {
+	p := &trace.parser
+
+	if chunk_pos(p) + size_of(spall.BufferHeader) > i64(len(chunk)) {
+		return .PartialRead
+	}
+
+	data_start := chunk[chunk_pos(p):]
+	tmp_header := (^spall.BufferHeader)(raw_data(data_start))^
+	buffer_header^ = tmp_header
+
+	p.pos += size_of(spall.BufferHeader)
+	return .EventRead
+}
 
 as_get_next_event :: proc(trace: ^Trace, chunk: []u8, temp_ev: ^TempEvent) -> BinaryState {
 	p := &trace.parser
@@ -28,7 +44,12 @@ as_get_next_event :: proc(trace: ^Trace, chunk: []u8, temp_ev: ^TempEvent) -> Bi
 		event := (^spall.MicroBegin_Event)(raw_data(data_start))
 		temp_ev.type = .MicroBegin
 		temp_ev.timestamp = f64((event.time_and_type << 8) >> 8)
-		temp_ev.name = in_get(&p.intern, &trace.string_block, fmt.tprintf("0x%x", event.address))
+
+		tmp_buf := [34]byte{}
+		tmp_buf[0] = '0'
+		tmp_buf[1] = 'x'
+		name_str := strconv.append_uint(tmp_buf[2:], event.address, 16)
+		temp_ev.name = in_get(&p.intern, &trace.string_block, string(tmp_buf[:len(name_str)+2]))
 
 		p.pos += event_sz
 		return .EventRead
@@ -52,55 +73,26 @@ as_get_next_event :: proc(trace: ^Trace, chunk: []u8, temp_ev: ^TempEvent) -> Bi
 	return .PartialRead
 }
 
-as_push_event :: proc(trace: ^Trace, process_id, thread_id: u32, event: ^Event) -> (int, int, int, bool) {
-	p_idx := setup_pid(trace, process_id)
-	t_idx := setup_tid(trace, p_idx, thread_id)
-
-	p := &trace.processes[p_idx]
-	p.min_time = min(p.min_time, event.timestamp)
-
-	t := &p.threads[t_idx]
-	t.min_time = min(t.min_time, event.timestamp)
-	if t.max_time > event.timestamp {
-		post_error(trace, 
-			"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
-			process_id, thread_id, in_getstr(&trace.string_block, event.name), event, trace.event_count)
-		return 0, 0, 0, false
-	}
-	t.max_time = event.timestamp + event.duration
-
-	trace.total_min_time = min(trace.total_min_time, event.timestamp)
-	trace.total_max_time = max(trace.total_max_time, event.timestamp + event.duration)
-
-	if int(t.current_depth) >= len(t.depths) {
-		depth := Depth{
-			events = make([dynamic]Event),
-		}
-		append(&t.depths, depth)
-	}
-
-	depth := &t.depths[t.current_depth]
-	t.current_depth += 1
-	append_event(&depth.events, event)
-
-	return p_idx, t_idx, len(depth.events)-1, true
-}
-
 as_parse :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size: i64) -> bool {
 	temp_ev := TempEvent{}
+	buffer_header := spall.BufferHeader{}
 	ev := Event{}
 	p := &trace.parser
 
+	proc_idx := setup_pid(trace, 0)
+	process := &trace.processes[proc_idx]
+
 	last_read: i64 = 0
 	full_chunk := chunk_buffer[:read_size]
-	load_loop: for p.pos < trace.total_size {
-		mem.zero(&temp_ev, size_of(TempEvent))
-		state := as_get_next_event(trace, full_chunk, &temp_ev)
+	buffer_loop: for p.pos < trace.total_size {
+		mem.zero(&buffer_header, size_of(spall.BufferHeader))
+
+		state := as_get_next_buffer(trace, full_chunk, &buffer_header)
 		#partial switch state {
 		case .PartialRead:
 			if p.pos == last_read {
 				fmt.printf("Invalid trailing data? dropping from [%d -> %d] (%d bytes)\n", p.pos, trace.total_size, trace.total_size - p.pos)
-				break load_loop
+				break buffer_loop
 			} else {
 				last_read = p.pos
 			}
@@ -114,58 +106,98 @@ as_parse :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size: i6
 			}
 
 			full_chunk = chunk_buffer[:rd_sz]
-			continue
+			continue buffer_loop
 		case .Failure:
 			return false
 		}
 
-		#partial switch temp_ev.type {
-		case .MicroBegin:
-			ev.name = temp_ev.name
-			ev.args = temp_ev.args
-			ev.duration = -1
-			ev.self_time = 0
-			ev.timestamp = temp_ev.timestamp * trace.stamp_scale
+		thread_idx := setup_tid(trace, proc_idx, buffer_header.tid)
+		thread := &process.threads[thread_idx]
 
-			p_idx, t_idx, e_idx, ok := as_push_event(trace, temp_ev.process_id, temp_ev.thread_id, &ev)
-			if !ok {
+		buffer_end := p.pos + i64(buffer_header.size)
+		ev_loop: for p.pos < buffer_end {
+			mem.zero(&temp_ev, size_of(TempEvent))
+			state := as_get_next_event(trace, full_chunk, &temp_ev)
+
+			#partial switch state {
+			case .PartialRead:
+				if p.pos == last_read {
+					fmt.printf("Invalid trailing data? dropping from [%d -> %d] (%d bytes)\n", p.pos, trace.total_size, trace.total_size - p.pos)
+					break buffer_loop
+				} else {
+					last_read = p.pos
+				}
+
+				p.offset = p.pos
+
+				rd_sz, ok := get_chunk(p, fd, chunk_buffer)
+				if !ok {
+					post_error(trace, "Failed to read file!")
+					return false
+				}
+
+				full_chunk = chunk_buffer[:rd_sz]
+				continue ev_loop
+			case .Failure:
 				return false
 			}
 
-			thread := &trace.processes[p_idx].threads[t_idx]
-			ev_data := EVData{idx = e_idx, depth = thread.current_depth - 1}
-			stack_push_back(&thread.bande_q, ev_data)
-			trace.event_count += 1
-		case .MicroEnd:
-			p_idx, ok1 := vh_find(&trace.process_map, temp_ev.process_id)
-			if !ok1 {
-				continue
-			}
+			#partial switch temp_ev.type {
+			case .MicroBegin:
+				ev.name = temp_ev.name
+				ev.duration = -1
+				ev.self_time = 0
+				ev.timestamp = temp_ev.timestamp * trace.stamp_scale
 
-			t_idx, ok2 := vh_find(&trace.processes[p_idx].thread_map, temp_ev.thread_id)
-			if !ok2 {
-				continue
-			}
+				if thread.max_time > ev.timestamp {
+					post_error(trace, 
+						"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
+						0, buffer_header.tid, in_getstr(&trace.string_block, ev.name), ev, trace.event_count)
+					return false
+				}
 
-			thread := &trace.processes[p_idx].threads[t_idx]
-			if thread.bande_q.len > 0 {
-				jev_data := stack_pop_back(&thread.bande_q)
-				thread.current_depth -= 1
+				process.min_time = min(process.min_time, ev.timestamp)
+				thread.min_time = min(thread.min_time, ev.timestamp)
+				thread.max_time = ev.timestamp + ev.duration
+
+				trace.total_min_time = min(trace.total_min_time, ev.timestamp)
+				trace.total_max_time = max(trace.total_max_time, ev.timestamp + ev.duration)
+
+				if int(thread.current_depth) >= len(thread.depths) {
+					depth := Depth{
+						events = make([dynamic]Event),
+					}
+					append(&thread.depths, depth)
+				}
 
 				depth := &thread.depths[thread.current_depth]
-				jev := &depth.events[jev_data.idx]
-				jev.duration = (temp_ev.timestamp * trace.stamp_scale) - jev.timestamp
-				jev.self_time = jev.duration - jev.self_time
-				thread.max_time = max(thread.max_time, jev.timestamp + jev.duration)
-				trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
+				thread.current_depth += 1
+				append_event(&depth.events, &ev)
 
+				ev_idx := len(depth.events)-1
+				ev_data := EVData{idx = ev_idx, depth = thread.current_depth - 1}
+				stack_push_back(&thread.bande_q, ev_data)
+				trace.event_count += 1
+			case .MicroEnd:
 				if thread.bande_q.len > 0 {
-					parent_depth := &thread.depths[thread.current_depth - 1]
-					parent_ev := stack_peek_back(&thread.bande_q)
+					jev_data := stack_pop_back(&thread.bande_q)
+					thread.current_depth -= 1
 
-					pev := &parent_depth.events[parent_ev.idx]
+					depth := &thread.depths[thread.current_depth]
+					jev := &depth.events[jev_data.idx]
+					jev.duration = (temp_ev.timestamp * trace.stamp_scale) - jev.timestamp
+					jev.self_time = jev.duration - jev.self_time
+					thread.max_time = max(thread.max_time, jev.timestamp + jev.duration)
+					trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
 
-					pev.self_time += jev.duration
+					if thread.bande_q.len > 0 {
+						parent_depth := &thread.depths[thread.current_depth - 1]
+						parent_ev := stack_peek_back(&thread.bande_q)
+
+						pev := &parent_depth.events[parent_ev.idx]
+
+						pev.self_time += jev.duration
+					}
 				}
 			}
 		}

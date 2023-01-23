@@ -36,6 +36,11 @@ Auto_Event_Type :: enum u8 {
 	MicroEnd   = 2,
 }
 
+BufferHeader :: struct #packed {
+	size: u32,
+	tid: u32,
+}
+
 // MicroBegin/End type is packed into the high bits of time
 MicroBegin_Event :: struct #packed {
 	time_and_type: u64, 
