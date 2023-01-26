@@ -228,6 +228,8 @@ main :: proc() {
 		start_trace = strings.clone(os.args[1])
 	}
 
+	trace := new(Trace)
+
 	orig_window_width: i32 = 1280
 	orig_window_height: i32 = 720
 
@@ -340,7 +342,6 @@ main :: proc() {
 
 	ch_width = measure_text("a", .PSize, .MonoFont)
 	
-	trace := new(Trace)
 	rects := make([dynamic]DrawRect)
 	text_rects := make([dynamic]TextRect)
 

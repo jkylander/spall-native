@@ -396,7 +396,11 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	defer delete(chunk_buffer)
 
 	total_size, err2 := os.file_size(trace_fd)
-	if err2 != 0 || total_size == 0 {
+	if err2 != 0 {
+		post_error(trace, "unable to get file size!")
+		return
+	}
+	if total_size == 0 {
 		post_error(trace, "%s is empty!", file_name)
 		return
 	}
