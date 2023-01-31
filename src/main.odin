@@ -228,6 +228,8 @@ main :: proc() {
 		start_trace = strings.clone(os.args[1])
 	}
 
+	trace := new(Trace)
+
 	orig_window_width: i32 = 1280
 	orig_window_height: i32 = 720
 
@@ -259,7 +261,7 @@ main :: proc() {
 
 	gl_context := SDL.GL_CreateContext(window)
 	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, SDL.gl_set_proc_address)
-	SDL.GL_SetSwapInterval(0)
+	SDL.GL_SetSwapInterval(-1)
 
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
@@ -340,7 +342,6 @@ main :: proc() {
 
 	ch_width = measure_text("a", .PSize, .MonoFont)
 	
-	trace := new(Trace)
 	rects := make([dynamic]DrawRect)
 	text_rects := make([dynamic]TextRect)
 
@@ -458,9 +459,11 @@ main :: proc() {
 				}
 			case .MOUSEWHEEL:
 				y_dist := f64(event.wheel.y) * -100
+/*
 				if event.wheel.direction == u32(SDL.SDL_MouseWheelDirection.FLIPPED) {
 					y_dist *= -1
 				}
+*/
 				if ctrl_down {
 					y_dist *= 10
 				}

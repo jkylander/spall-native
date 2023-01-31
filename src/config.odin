@@ -11,25 +11,16 @@ import "formats:spall"
 
 FileType :: enum {
 	Json,
-	SpallStream,
+	ManualStream,
+	AutoStream,
 }
 
 Parser :: struct {
 	pos: i64,
 	offset: i64,
-	intern: INMap,
 }
 real_pos :: proc(p: ^Parser) -> i64 { return p.pos }
 chunk_pos :: proc(p: ^Parser) -> i64 { return p.pos - p.offset }
-init_parser :: proc() -> Parser {
-	p := Parser{
-		intern = in_init(),
-	}
-	return p
-}
-free_parser :: proc(p: ^Parser) {
-	in_free(&p.intern)
-}
 get_chunk :: proc(p: ^Parser, fd: os.Handle, chunk_buffer: []u8) -> (int, bool) {
 	_, err := os.seek(fd, p.pos, os.SEEK_SET)
 	if err != 0 {
@@ -77,7 +68,8 @@ free_trace_temps :: proc(trace: ^Trace) {
 		vh_free(&process.thread_map)
 	}
 	vh_free(&trace.process_map)
-	free_parser(&trace.parser)
+	in_free(&trace.intern)
+	delete(trace.addr_map)
 }
 
 free_trace :: proc(trace: ^Trace) {
@@ -380,7 +372,9 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		base_name = filepath.base(file_name),
 		file_name = file_name,
 		string_block = make([dynamic]u8),
-		parser = init_parser(),
+		intern = in_init(),
+		addr_map = make(map[u64]INStr),
+		parser = Parser{},
 		error_message = "",
 	}
 
@@ -391,11 +385,15 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	}
 	defer os.close(trace_fd)
 
-	chunk_buffer := make([]u8, 1 * 1024 * 1024)
+	chunk_buffer := make([]u8, 4 * 1024 * 1024)
 	defer delete(chunk_buffer)
 
 	total_size, err2 := os.file_size(trace_fd)
-	if err2 != 0 || total_size == 0 {
+	if err2 != 0 {
+		post_error(trace, "unable to get file size!")
+		return
+	}
+	if total_size == 0 {
 		post_error(trace, "%s is empty!", file_name)
 		return
 	}
@@ -411,16 +409,16 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	// parse header
 	full_chunk := chunk_buffer[:rd_sz]
 
-	header_sz := i64(size_of(spall.Header))
-	if i64(len(full_chunk)) < header_sz {
+	magic_sz := i64(size_of(u64))
+	if i64(len(full_chunk)) < magic_sz {
 		post_error(trace, "File %s too small to be valid!", file_name)
 		return
 	}
 
 	file_type: FileType
 	magic := (^u64)(raw_data(full_chunk))^
-	if magic == spall.MAGIC {
-		hdr := cast(^spall.Header)raw_data(full_chunk)
+	if magic == spall.MANUAL_MAGIC {
+		hdr := cast(^spall.Manual_Header)raw_data(full_chunk)
 		if hdr.version != 1 {
 			post_error(trace, "Spall version %d for %s is invalid!", hdr.version, file_name)
 			return
@@ -429,17 +427,44 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		trace.stamp_scale = hdr.timestamp_unit
 
 		p := &trace.parser
-		p.pos += header_sz
+		p.pos += size_of(spall.Manual_Header)
 
-		file_type = .SpallStream
+		file_type = .ManualStream
+	} else if magic == spall.AUTO_MAGIC {
+		hdr := cast(^spall.Auto_Header)raw_data(full_chunk)
+		if hdr.version != 1 {
+			post_error(trace, "Spall version %d for %s is invalid!", hdr.version, file_name)
+			return
+		}
+		if total_size < i64(size_of(spall.Auto_Header)) + i64(hdr.program_path_len) {
+			post_error(trace, "%s is invalid!", file_name)
+			return
+		}
+		
+		trace.stamp_scale = hdr.timestamp_unit
+		trace.skew_address = hdr.known_address
+
+
+		symbol_path := string(full_chunk[size_of(spall.Auto_Header):size_of(spall.Auto_Header)+hdr.program_path_len])
+
+		p := &trace.parser
+		p.pos += size_of(spall.Auto_Header) + i64(hdr.program_path_len)
+
+		if !load_executable(trace, symbol_path) {
+			return
+		}
+
+		file_type = .AutoStream
 	} else {
 		file_type = .Json
 	}
 
 	parsed_properly := false
 	#partial switch file_type {
-	case .SpallStream:
-		parsed_properly = parse_binary(trace, trace_fd, chunk_buffer, i64(rd_sz))
+	case .ManualStream:
+		parsed_properly = ms_parse(trace, trace_fd, chunk_buffer, i64(rd_sz))
+	case .AutoStream:
+		parsed_properly = as_parse(trace, trace_fd, chunk_buffer, i64(rd_sz))
 	case .Json:
 		parsed_properly = parse_json(trace, trace_fd, chunk_buffer)
 	}
@@ -457,7 +482,8 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	}
 
 	#partial switch file_type {
-	case .SpallStream:
+	case .ManualStream: fallthrough
+	case .AutoStream:
 		for process in &trace.processes {
 			slice.sort_by(process.threads[:], tid_sort_proc)
 		}
