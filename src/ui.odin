@@ -579,9 +579,9 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 			if last_cur_y > full_flamegraph_rect.y {
 				row_text: string
 				if thread.name > 0 {
-					row_text = fmt.tprintf("%s (TID %d)", in_getstr(&trace.string_block, thread.name), thread.thread_id)
+					row_text = fmt.tprintf("%s (TID %d)", in_getstr(&trace.string_block, thread.name), thread.id)
 				} else {
-					row_text = fmt.tprintf("TID: %d", thread.thread_id)
+					row_text = fmt.tprintf("TID: %d", thread.id)
 				}
 				batch_text(text_rects, row_text, Vec2{ui_state.side_pad + 5, last_cur_y}, .H2Size, .DefaultFont, text_color)
 			}

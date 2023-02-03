@@ -64,7 +64,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		if thread.max_time > ev.timestamp {
 			post_error(trace, 
 				"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
-				0, thread.thread_id, in_getstr(&trace.string_block, ev.name), ev, trace.event_count)
+				0, thread.id, in_getstr(&trace.string_block, ev.name), ev, trace.event_count)
 			return .Failure
 		}
 
@@ -87,8 +87,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		append_event(&depth.events, &ev)
 
 		ev_idx := len(depth.events)-1
-		ev_data := EVData{idx = ev_idx, depth = thread.current_depth - 1}
-		stack_push_back(&thread.bande_q, ev_data)
+		stack_push_back(&thread.bande_q, ev_idx)
 		trace.event_count += 1
 
 		p.pos += event_sz
@@ -104,11 +103,11 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		timestamp := f64((event.time_and_type << 8) >> 8)
 
 		if thread.bande_q.len > 0 {
-			jev_data := stack_pop_back(&thread.bande_q)
+			jev_idx := stack_pop_back(&thread.bande_q)
 			thread.current_depth -= 1
 
 			depth := &thread.depths[thread.current_depth]
-			jev := &depth.events[jev_data.idx]
+			jev := &depth.events[jev_idx]
 			jev.duration = (timestamp * trace.stamp_scale) - jev.timestamp
 			jev.self_time = jev.duration - jev.self_time
 			thread.max_time = max(thread.max_time, jev.timestamp + jev.duration)
@@ -116,9 +115,9 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 
 			if thread.bande_q.len > 0 {
 				parent_depth := &thread.depths[thread.current_depth - 1]
-				parent_ev := stack_peek_back(&thread.bande_q)
+				parent_ev_idx := stack_peek_back(&thread.bande_q)
 
-				pev := &parent_depth.events[parent_ev.idx]
+				pev := &parent_depth.events[parent_ev_idx]
 				pev.self_time += jev.duration
 			}
 		}
@@ -203,11 +202,14 @@ as_parse :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size: i6
 	// cleanup unfinished events
 	for process in &trace.processes {
 		for thread in &process.threads {
-			for thread.bande_q.len > 0 {
-				ev_data := stack_pop_back(&thread.bande_q)
+			assert(u16(thread.bande_q.len) == thread.current_depth)
+			for thread.current_depth > 0 {
+				jev_idx := stack_pop_back(&thread.bande_q)
+				thread.current_depth -= 1
+				ev_depth := thread.current_depth
 
-				depth := &thread.depths[ev_data.depth]
-				jev := &depth.events[ev_data.idx]
+				depth := &thread.depths[ev_depth]
+				jev := &depth.events[jev_idx]
 
 				thread.max_time = max(thread.max_time, jev.timestamp)
 				trace.total_max_time = max(trace.total_max_time, jev.timestamp)
@@ -216,11 +218,11 @@ as_parse :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size: i6
 				jev.self_time = duration - jev.self_time
 				jev.self_time = max(jev.self_time, 0)
 
-				if thread.bande_q.len > 0 {
-					parent_depth := &thread.depths[ev_data.depth - 1]
-					parent_ev := stack_peek_back(&thread.bande_q)
+				if thread.current_depth > 0 {
+					parent_depth := &thread.depths[ev_depth - 1]
+					parent_ev_idx := stack_peek_back(&thread.bande_q)
 
-					pev := &parent_depth.events[parent_ev.idx]
+					pev := &parent_depth.events[parent_ev_idx]
 					pev.self_time += duration
 					pev.self_time = max(pev.self_time, 0)
 				}

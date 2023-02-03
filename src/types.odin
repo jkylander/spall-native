@@ -235,24 +235,19 @@ Depth :: struct {
 	events: [dynamic]Event,
 }
 
-EVData :: struct {
-	idx: int,
-	depth: u16,
-}
-
 Thread :: struct {
 	min_time: f64,
 	max_time: f64,
 	current_depth: u16,
 
-	thread_id: u32,
+	id: u32,
 	name: u32,
 
 	events: [dynamic]Event,
 	depths: [dynamic]Depth,
 	instants: [dynamic]Instant,
 
-	bande_q: Stack(EVData),
+	bande_q: Stack(int),
 }
 
 Process :: struct {
@@ -282,7 +277,7 @@ free_process :: proc(process: ^Process) {
 init_thread :: proc(thread_id: u32) -> Thread {
 	t := Thread{
 		min_time = 0x7fefffffffffffff, 
-		thread_id = thread_id,
+		id = thread_id,
 		events = make([dynamic]Event),
 		depths = make([dynamic]Depth),
 		instants = make([dynamic]Instant),
