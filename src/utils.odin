@@ -116,7 +116,7 @@ tooltip_fmt :: proc(time: f64) -> string {
 		cur_time := time / ONE_MICRO
 		return fmt.tprintf("%.1f μs", cur_time)
 	} else {
-		return fmt.tprintf("%.1f ns", time)
+		return fmt.tprintf("%.0f ns", time)
 	}
 }
 
