@@ -471,3 +471,17 @@ am_insert :: proc(v: ^AMMap, key: u64, val: u32) {
 
 	push_fatal(SpallError.Bug)
 }
+
+am_skew :: proc(v: ^AMMap, skew_size: u64) {
+	for entry, _ in &v.entries {
+		entry.key += skew_size
+	}
+
+	for i in 0..<len(v.hashes) {
+		v.hashes[i] = -1
+	}
+
+	for entry, idx in v.entries {
+		am_reinsert(v, entry, idx)
+	}
+}

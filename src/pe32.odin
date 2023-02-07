@@ -294,57 +294,11 @@ load_pe32 :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 	}
 
 	skew_size : u64 = 0
+	symbol_found := false
+
 	mod_offset := size_of(PDB_DBI_Header)
 	last_mod_info := int(dbi_hdr.mod_info_size) + size_of(PDB_DBI_Header)
 	first_pass: for ; mod_offset < last_mod_info; {
-		mod_info_hdr := slice_to_type(dbi_stream[mod_offset:], PDB_Module_Info) or_return
-		mod_offset += size_of(PDB_Module_Info)
-
-		module_name := cstring(raw_data(dbi_stream[mod_offset:]))
-		mod_name_sz := len(module_name) + 1
-		mod_offset += mod_name_sz
-
-		object_name := cstring(raw_data(dbi_stream[mod_offset:]))
-		obj_name_sz := len(object_name) + 1
-		mod_offset += obj_name_sz
-
-		mod_offset = i_round_up(mod_offset, 4)
-
-		symbol_offset_stream_offset := stream_block_offsets[mod_info_hdr.module_symbol_stream]
-		symbol_stream_size := stream_sizes[mod_info_hdr.module_symbol_stream]
-		symbol_offset_stream := stream_blocks[symbol_offset_stream_offset:]
-
-		symbol_stream := linearize_stream(pdb_buffer, symbol_offset_stream, msf_hdr.block_size, symbol_stream_size)
-		defer delete(symbol_stream)
-
-		// skipping over codeview signature
-		sym_offset := 4
-		for ; sym_offset < (int(mod_info_hdr.symbols_size) - 2); {
-			sym_hdr := slice_to_type(symbol_stream[sym_offset:], PDB_Symbol_Header) or_return
-			#partial switch sym_hdr.type {
-				case .GlobalProc32: fallthrough
-				case .LocalProc32: {
-					proc_symbol := slice_to_type(symbol_stream[sym_offset:], CV_Proc32) or_return
-					symbol_name := cstring(raw_data(symbol_stream[sym_offset+size_of(CV_Proc32):]))
-
-					if symbol_name == "spall_auto_init" {
-						section_offset := proc_symbol.section_idx * size_of(COFF_Section_Header)
-						section_hdr := slice_to_type(section_buffer[section_offset:], COFF_Section_Header) or_return
-
-						symbol_addr := section_hdr.virtual_addr + proc_symbol.offset
-						skew_size = trace.skew_address - u64(symbol_addr)
-						break first_pass
-					}
-
-				}
-			}
-
-			sym_offset += 2 + int(sym_hdr.length)
-		}
-	}
-
-	mod_offset = size_of(PDB_DBI_Header)
-	for ; mod_offset < last_mod_info; {
 		mod_info_hdr := slice_to_type(dbi_stream[mod_offset:], PDB_Module_Info) or_return
 		mod_offset += size_of(PDB_Module_Info)
 
@@ -378,9 +332,14 @@ load_pe32 :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 					section_offset := proc_symbol.section_idx * size_of(COFF_Section_Header)
 					section_hdr := slice_to_type(section_buffer[section_offset:], COFF_Section_Header) or_return
 
+					symbol_addr := u64(section_hdr.virtual_addr + proc_symbol.offset)
 					interned_symbol := in_get(&trace.intern, &trace.string_block, symbol_name)
-					symbol_addr := u64(section_hdr.virtual_addr) + u64(proc_symbol.offset) + skew_size
 					am_insert(&trace.addr_map, symbol_addr, interned_symbol)
+
+					if !symbol_found && symbol_name == "spall_auto_init" {
+						skew_size = trace.skew_address - symbol_addr
+						symbol_found = true
+					}
 				}
 			}
 
@@ -388,6 +347,7 @@ load_pe32 :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 		}
 	}
 
+	am_skew(&trace.addr_map, skew_size)
 	return true
 }
 

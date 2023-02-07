@@ -74,6 +74,7 @@ load_macho :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 	}
 
 	skew_size : u64 = 0
+	symbol_found := false
 	symbol_table_bytes := exec_buffer[symtab_header.symbol_table_offset:]
 	string_table_bytes := exec_buffer[symtab_header.string_table_offset:]
 	for i := 0; i < int(symtab_header.symbol_count); i += 1 {
@@ -81,24 +82,15 @@ load_macho :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 		symbol := slice_to_type(symbol_buffer, Mach_Symbol_Entry_64) or_return
 		symbol_name := string(cstring(raw_data(string_table_bytes[symbol.string_table_idx:])))
 
-		if symbol_name == "_spall_auto_init" {
+		interned_symbol := in_get(&trace.intern, &trace.string_block, symbol_name)
+		am_insert(&trace.addr_map, symbol.value, interned_symbol)
+
+		if !symbol_found && symbol_name == "_spall_auto_init" {
 			skew_size = trace.skew_address - u64(symbol.value)
-			break
+			symbol_found = true
 		}
 	}
 
-	for i := 0; i < int(symtab_header.symbol_count); i += 1 {
-		symbol_buffer := exec_buffer[int(symtab_header.symbol_table_offset)+(i * size_of(Mach_Symbol_Entry_64)):]
-		symbol := slice_to_type(symbol_buffer, Mach_Symbol_Entry_64) or_return
-		symbol_name := string(cstring(raw_data(string_table_bytes[symbol.string_table_idx:])))
-
-		if symbol.value != 0 {
-			interned_symbol := in_get(&trace.intern, &trace.string_block, symbol_name)
-
-			symbol_addr := symbol.value + skew_size
-			am_insert(&trace.addr_map, symbol_addr, interned_symbol)
-		}
-	}
-
+	am_skew(&trace.addr_map, skew_size)
 	return true
 }
