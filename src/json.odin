@@ -827,13 +827,23 @@ process_next_json_event :: proc(trace: ^Trace, jp: ^JSONParser, chunk: []u8) -> 
 	return
 }
 
-json_parse :: proc (trace: ^Trace, fd: os.Handle, chunk_buffer: []u8) -> bool {
+json_parse :: proc (trace: ^Trace, fd: os.Handle) -> bool {
 	p := &trace.parser
 	jp := init_json_parser()
 
+	chunk_buffer := make([]u8, 4 * 1024 * 1024)
+	defer delete(chunk_buffer)
+
+	os.seek(fd, 0, os.SEEK_SET)
+	read_size, err := os.read(fd, chunk_buffer)
+	if err != 0 {
+		post_error(trace, "Unable to read file!")
+		return false
+	}
+
 	// skip until we hit the start of the traceEvents arr
 	last_read: i64 = 0
-	full_chunk := chunk_buffer
+	full_chunk := chunk_buffer[:read_size]
 	pre_loop: for p.pos <= i64(trace.total_size) {
 		state := the_skipper(trace, &jp, full_chunk)
 		if p.pos >= i64(trace.total_size) {

@@ -444,27 +444,23 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 	trace.total_size = total_size
 	fmt.printf("Loading %s, %f MB\n", trace.base_name, f64(trace.total_size) / 1024 / 1024)
 
-	chunk_buffer := make([]u8, 4 * 1024 * 1024)
-	defer delete(chunk_buffer)
-
-	rd_sz, err3 := os.read(trace_fd, chunk_buffer)
+	header_buffer := [0x4000]u8{}
+	rd_sz, err3 := os.read(trace_fd, header_buffer[:])
 	if err3 != 0 {
 		post_error(trace, "Unable to read %s!", file_name)
 		return
 	}
 
-	// parse header
-	full_chunk := chunk_buffer[:rd_sz]
-
-	magic, ok := slice_to_type(full_chunk, u64)
+	magic, ok := slice_to_type(header_buffer[:], u64)
 	if !ok {
 		post_error(trace, "File %s too small to be valid!", file_name)
 		return
 	}
 
+	header_size : i64 = 0
 	file_type: FileType
 	if magic == spall.MANUAL_MAGIC {
-		hdr, ok := slice_to_type(full_chunk, spall.Manual_Header)
+		hdr, ok := slice_to_type(header_buffer[:], spall.Manual_Header)
 		if !ok {
 			post_error(trace, "%s is invalid!", file_name)
 			return
@@ -476,13 +472,11 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		}
 		
 		trace.stamp_scale = hdr.timestamp_unit
-
-		p := &trace.parser
-		p.pos += size_of(spall.Manual_Header)
+		header_size = size_of(spall.Manual_Header)
 
 		file_type = .ManualStream
 	} else if magic == spall.AUTO_MAGIC {
-		hdr, ok := slice_to_type(full_chunk, spall.Auto_Header)
+		hdr, ok := slice_to_type(header_buffer[:], spall.Auto_Header)
 		if !ok {
 			post_error(trace, "%s is invalid!", file_name)
 			return
@@ -500,12 +494,9 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		trace.stamp_scale = hdr.timestamp_unit
 		trace.skew_address = hdr.known_address
 
+		symbol_path := string(header_buffer[size_of(spall.Auto_Header):][:hdr.program_path_len])
 
-		symbol_path := string(full_chunk[size_of(spall.Auto_Header):][:hdr.program_path_len])
-
-		p := &trace.parser
-		p.pos += size_of(spall.Auto_Header) + i64(hdr.program_path_len)
-
+		header_size = size_of(spall.Auto_Header) + i64(hdr.program_path_len)
 		if !load_executable(trace, symbol_path) {
 			return
 		}
@@ -515,14 +506,17 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		file_type = .Json
 	}
 
+	p := &trace.parser
+	p.pos += i64(header_size)
+
 	parsed_properly := false
 	#partial switch file_type {
 	case .ManualStream:
-		parsed_properly = ms_parse(trace, trace_fd, chunk_buffer, i64(rd_sz))
+		parsed_properly = ms_parse(trace, trace_fd, header_size)
 	case .AutoStream:
-		parsed_properly = as_parse(trace, trace_fd, chunk_buffer, i64(rd_sz))
+		parsed_properly = as_parse(trace, trace_fd, header_size)
 	case .Json:
-		parsed_properly = json_parse(trace, trace_fd, chunk_buffer)
+		parsed_properly = json_parse(trace, trace_fd)
 	}
 	free_trace_temps(trace)
 	if !parsed_properly {

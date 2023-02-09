@@ -133,12 +133,22 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 }
 
 
-as_parse :: proc(trace: ^Trace, fd: os.Handle, chunk_buffer: []u8, read_size: i64) -> bool {
+as_parse :: proc(trace: ^Trace, fd: os.Handle, header_size: i64) -> bool {
 	buffer_header := spall.BufferHeader{}
 	p := &trace.parser
 
 	proc_idx := setup_pid(trace, 0)
 	process := &trace.processes[proc_idx]
+
+	chunk_buffer := make([]u8, 4 * 1024 * 1024)
+	defer delete(chunk_buffer)
+
+	os.seek(fd, 0, os.SEEK_SET)
+	read_size, err := os.read(fd, chunk_buffer)
+	if err != 0 {
+		post_error(trace, "Unable to read file!")
+		return false
+	}
 
 	last_read: i64 = 0
 	full_chunk := chunk_buffer[:read_size]

@@ -333,6 +333,8 @@ main :: proc() {
 
 	rect_uniforms := gl.get_uniforms_from_program(rect_program)
 	gl.UseProgram(rect_program)
+	u_dpr := rect_uniforms["u_dpr"].location
+	u_res := rect_uniforms["u_resolution"].location
 
 	vao: u32
 	gl.GenVertexArrays(1, &vao)
@@ -527,8 +529,8 @@ main :: proc() {
 		}
 
 		gl.Viewport(0, 0, i32(width * dpr), i32(height * dpr))
-		gl.Uniform1f(rect_uniforms["u_dpr"].location, f32(dpr))
-		gl.Uniform2f(rect_uniforms["u_resolution"].location, f32(width * dpr), f32(height * dpr))
+		gl.Uniform1f(u_dpr, f32(dpr))
+		gl.Uniform2f(u_res, f32(width * dpr), f32(height * dpr))
 		gl.BindBuffer(gl.ARRAY_BUFFER, rect_deets_buffer)
 		gl.BindVertexArray(vao);
 
