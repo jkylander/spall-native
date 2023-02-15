@@ -23,11 +23,7 @@ Parser :: struct {
 real_pos :: proc(p: ^Parser) -> i64 { return p.pos }
 chunk_pos :: proc(p: ^Parser) -> i64 { return p.pos - p.offset }
 get_chunk :: proc(p: ^Parser, fd: os.Handle, chunk_buffer: []u8) -> (int, bool) {
-	_, err := os.seek(fd, p.pos, os.SEEK_SET)
-	if err != 0 {
-		return 0, false
-	}
-	rd_sz, err2 := os.read(fd, chunk_buffer)
+	rd_sz, err2 := os.read_at(fd, chunk_buffer, p.pos)
 	if err2 != 0 {
 		return 0, false
 	}
