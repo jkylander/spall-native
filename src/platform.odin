@@ -184,9 +184,10 @@ flush_rects :: proc(rects: ^[dynamic]DrawRect) {
 }
 
 when ODIN_OS != .Darwin {
-open_file_dialog :: proc() -> (string, bool) {
-	return "", false
+init_bs :: proc() { 
+	velocity_multiplier = -100
 }
+open_file_dialog :: proc() -> (string, bool) { return "", false }
 }
 
 get_system_color :: proc() -> bool { return false }

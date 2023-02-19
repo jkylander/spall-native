@@ -37,6 +37,7 @@ clicked_pos    := Vec2{}
 scroll_val_y: f64 = 0
 info_pane_scroll: f64 = 0
 info_pane_scroll_vel: f64 = 0
+velocity_multiplier: f64 = 0
 
 cam := Camera{Vec2{0, 0}, Vec2{0, 0}, 0, 1, 1}
 
@@ -278,6 +279,8 @@ main :: proc() {
 		return
 	}
 
+	init_bs()
+
 	default_cursor = SDL.CreateSystemCursor(.ARROW)
 	pointer_cursor = SDL.CreateSystemCursor(.HAND)
 
@@ -504,9 +507,9 @@ main :: proc() {
 					mouse_pos = Vec2{f64(event.button.x), f64(event.button.y)}
 				}
 			case .MOUSEWHEEL:
-				y_dist := f64(event.wheel.y) * -100
+				y_dist := f64(event.wheel.y) * velocity_multiplier
 /*
-				if event.wheel.direction == u32(SDL.SDL_MouseWheelDirection.FLIPPED) {
+				if event.wheel.direction == u32(SDL.MouseWheelDirection.FLIPPED) {
 					y_dist *= -1
 				}
 */

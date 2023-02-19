@@ -25,3 +25,11 @@ open_file_dialog :: proc() -> (string, bool) {
 
 	return "", false
 }
+
+init_bs :: proc() {
+	user_defaults := NS.UserDefaults.standardUserDefaults()
+	flag_str := NS.String.alloc()->initWithOdinString("AppleMomentumScrollSupported")
+	user_defaults->setBoolForKey(true, flag_str)
+
+	velocity_multiplier = -15
+}
