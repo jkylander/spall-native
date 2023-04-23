@@ -383,6 +383,10 @@ main :: proc() {
 	rects := make([dynamic]DrawRect)
 	text_rects := make([dynamic]TextRect)
 
+	ui_state := UIState{}
+	next_line(&ui_state.line_height, em)
+	ui_state.info_pane_height = ui_state.line_height * 8
+
 	start_tick := time.tick_now()
 	last_tick: time.Tick
 	awake := true
@@ -425,7 +429,6 @@ main :: proc() {
 
 		should_toggle_fullscreen := false
 
-		ui_state := UIState{}
 
 		// event polling
 		event: SDL.Event = ---
@@ -606,16 +609,11 @@ main :: proc() {
 		rect_height     := em + (0.75 * em)
 		top_line_gap    := (em / 1.5)
 
-		info_pane_height : f64 = 0
-		info_line_count := 8
-		for i := 0; i < info_line_count; i += 1 {
-			next_line(&info_pane_height, em)
-		}
 
 		topbars_height    := header_height + timebar_height + activity_height
 		minigraph_width   := 15 * em
 		flamegraph_width  := width - (spall_x_pad + minigraph_width)
-		flamegraph_height := height - topbars_height - info_pane_height
+		flamegraph_height := height - topbars_height - ui_state.info_pane_height
 
 		ui_state.height = height
 		ui_state.width  = width
@@ -631,7 +629,7 @@ main :: proc() {
 		ui_state.global_activity_rect    = Rect{spall_x_pad, header_height + timebar_height, flamegraph_width, activity_height}
 		ui_state.local_timebar_rect      = Rect{spall_x_pad, header_height + timebar_height + activity_height, flamegraph_width, timebar_height}
 		ui_state.minimap_rect            = Rect{width - minigraph_width, topbars_height, minigraph_width, flamegraph_height}
-		ui_state.info_pane_rect          = Rect{0, height - info_pane_height, width, info_pane_height}
+		ui_state.info_pane_rect          = Rect{0, height - ui_state.info_pane_height, width, ui_state.info_pane_height}
 
 		ui_state.full_flamegraph_rect    = Rect{spall_x_pad, topbars_height, flamegraph_width, flamegraph_height}
 
@@ -675,7 +673,7 @@ main :: proc() {
 		draw_line(&rects, Vec2{ui_state.minimap_rect.x, header_height + timebar_height}, Vec2{ui_state.minimap_rect.x, ui_state.info_pane_rect.y}, 1, line_color)
 
 		just_started, render_one_more := process_multiselect(&rects, trace, pan_delta, dt, &ui_state)
-		draw_stats(&rects, trace, info_line_count, just_started, &ui_state)
+		draw_stats(&rects, trace, just_started, &ui_state)
 		if resort_stats {
 			sort_stats(trace)
 			resort_stats = false

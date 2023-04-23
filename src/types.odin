@@ -23,8 +23,11 @@ UIState :: struct {
 	rect_height: f64,
 	top_line_gap: f64,
 	topbars_height: f64,
+	line_height: f64,
+
 	flamegraph_header_height: f64,
 	flamegraph_toptext_height: f64,
+	info_pane_height:     f64,
 
 	header_rect:          Rect,
 	global_activity_rect: Rect,
@@ -36,6 +39,8 @@ UIState :: struct {
 	full_flamegraph_rect:   Rect,
 	inner_flamegraph_rect:  Rect,
 	padded_flamegraph_rect: Rect,
+
+	resizing_pane: bool,
 }
 
 DrawRect :: struct #packed {

@@ -1189,7 +1189,7 @@ draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, end_t
 
 INITIAL_ITER :: 500_000
 FULL_ITER    :: 2_000_000
-draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_line_count: int, just_started: bool, ui_state: ^UIState) {
+draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, just_started: bool, ui_state: ^UIState) {
 	full_flamegraph_rect := ui_state.full_flamegraph_rect
 	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
 	info_pane_rect := ui_state.info_pane_rect
@@ -1198,11 +1198,41 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_line_count: in
 	draw_line(rects, Vec2{0, info_pane_rect.y}, Vec2{ui_state.width, info_pane_rect.y}, 1, line_color)
 	draw_rect(rects, info_pane_rect, bg_color) // bottom
 
-	tab_select_height := em + (em / 2)
+	tab_select_height := 2 * em
+	tab_rect := Rect{0, info_pane_rect.y, ui_state.width, tab_select_height}
+
 	pane_start_y := info_pane_rect.y + tab_select_height
 	pane_gapped_start_y := pane_start_y + ui_state.top_line_gap
-	draw_rect(rects, Rect{0, info_pane_rect.y, ui_state.width, tab_select_height}, tabbar_color)
+
+	draw_rect(rects, tab_rect, tabbar_color)
 	draw_line(rects, Vec2{0, pane_start_y}, Vec2{ui_state.width, pane_start_y}, 1, line_color)
+
+	handle_text := "\uf00a"
+	handle_y := info_pane_rect.y + ((tab_select_height / 2) - (h2_height / 2))
+	handle_width := measure_text(handle_text, .H2Size, .IconFont)
+
+	handle_pad := (em / 2)
+	tab_handle_rect := Rect{0, info_pane_rect.y, (2 * handle_pad) + handle_width, tab_select_height}
+	draw_rect(rects, tab_handle_rect, toolbar_button_color)
+	draw_text(rects, handle_text, Vec2{handle_pad, handle_y}, .H2Size, .IconFont, text_color)
+
+	tab_bar_x := (2 * handle_pad) + handle_width
+
+	if pt_in_rect(mouse_pos, tab_handle_rect) || ui_state.resizing_pane {
+		set_cursor("pointer")
+	}
+
+	if clicked && pt_in_rect(clicked_pos, tab_handle_rect) {
+		ui_state.resizing_pane = true
+	}
+	if is_mouse_down && ui_state.resizing_pane {
+		pos_y := max((ui_state.header_rect.y + ui_state.header_rect.h), mouse_pos.y)
+		ui_state.info_pane_height = max(ui_state.height - pos_y, tab_select_height)
+	}
+	if mouse_up_now && ui_state.resizing_pane {
+		ui_state.resizing_pane = false
+	}
+
 
 	x_subpad := em
 
@@ -1288,7 +1318,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_line_count: in
 
 		y += header_height + (em / 2)
 
-		displayed_lines := info_line_count - 1
+		displayed_lines := int(ui_state.info_pane_height / ui_state.line_height) - 1
 		if displayed_lines < len(trace.stats.entries) {
 			max_lines := len(trace.stats.entries)
 
@@ -1458,8 +1488,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, info_line_count: in
 
 		name_header_text   := fmt.tprintf("%-10s", "   name")
 		text_outf(rects, &cursor, y, name_header_text, text_color)
-	} else {
-		y := ui_state.height - em - ui_state.top_line_gap
+	} else if info_pane_rect.h > ((ui_state.line_height * 2) + (ui_state.top_line_gap * 2)) {
+		y := info_pane_rect.y + info_pane_rect.h - (ui_state.top_line_gap * 2)
 
 		draw_text(rects, "Shift-click and drag to get stats for multiple rectangles", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
 		draw_text(rects, "Click on a rectangle to inspect", Vec2{x_subpad, prev_line(&y, em)}, .PSize, .DefaultFont, text_color)
@@ -1815,6 +1845,13 @@ process_inputs :: proc(trace: ^Trace, dt: f64, ui_state: ^UIState) -> (i64, i64,
 
 	start_time, end_time: i64
 	pan_delta: Vec2
+
+	if ui_state.resizing_pane {
+		did_pan = true
+		start_time, end_time := get_current_window(trace, cam, ui_state)
+		return start_time, end_time, pan_delta
+	}
+
 	{
 		old_scale := cam.target_scale
 
