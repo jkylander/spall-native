@@ -1240,6 +1240,9 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 				}
 				if clicked && pt_in_rect(clicked_pos, checkbox_rect) {
 					proc_v.in_stats = !proc_v.in_stats
+					for thread, _ in &proc_v.threads {
+						thread.in_stats = proc_v.in_stats
+					}
 					build_selected_ranges(trace, ui_state)
 				}
 
@@ -1849,9 +1852,6 @@ build_selected_ranges :: proc(trace: ^Trace, ui_state: ^UIState) {
 
 	// build out ranges
 	for proc_v, p_idx in trace.processes {
-		if !proc_v.in_stats {
-			continue
-		}
 		for thread, t_idx in proc_v.threads {
 			if !thread.in_stats {
 				continue
