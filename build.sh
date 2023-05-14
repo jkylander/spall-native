@@ -8,3 +8,5 @@ elif [ "$1" = "opt" ]; then
 else
 	odin build src -collection:formats=formats -out:bin/spall -debug -keep-temp-files
 fi
+
+cp resources/* bin/.
