@@ -183,16 +183,6 @@ flush_rects :: proc(rects: ^[dynamic]DrawRect) {
 	resize(rects, 0)
 }
 
-when ODIN_OS != .Darwin {
-	init_bs :: proc() { 
-		velocity_multiplier = -100
-	}
-}
-
-when ODIN_OS != .Darwin && ODIN_OS != .Linux {
-	open_file_dialog :: proc() -> (string, bool) { return "", false }
-}
-
 get_system_color :: proc() -> bool { return false }
 get_session_storage :: proc(key: string) { }
 set_session_storage :: proc(key, val: string) { }

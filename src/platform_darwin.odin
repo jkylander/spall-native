@@ -5,6 +5,14 @@ package main
 import "core:strings"
 import NS "vendor:darwin/Foundation"
 
+platform_init :: proc() {
+	user_defaults := NS.UserDefaults.standardUserDefaults()
+	flag_str := NS.String.alloc()->initWithOdinString("AppleMomentumScrollSupported")
+	user_defaults->setBoolForKey(true, flag_str)
+
+	velocity_multiplier = -15
+}
+
 open_file_dialog :: proc() -> (string, bool) {
 	panel := NS.OpenPanel.openPanel()
 	panel->setCanChooseFiles(true)
@@ -26,10 +34,3 @@ open_file_dialog :: proc() -> (string, bool) {
 	return "", false
 }
 
-init_bs :: proc() {
-	user_defaults := NS.UserDefaults.standardUserDefaults()
-	flag_str := NS.String.alloc()->initWithOdinString("AppleMomentumScrollSupported")
-	user_defaults->setBoolForKey(true, flag_str)
-
-	velocity_multiplier = -15
-}

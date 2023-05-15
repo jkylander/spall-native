@@ -8,6 +8,10 @@ import "core:fmt"
 import "core:strings"
 import "core:time"
 
+platform_init :: proc() {
+	velocity_multiplier = -100
+}
+
 open_file_dialog :: proc() -> (string, bool) {
 	buffer := [4096]u8{}
 	fds := [2]os.Handle{}
@@ -15,7 +19,7 @@ open_file_dialog :: proc() -> (string, bool) {
 
 	pid, err := os.fork()
 	if err != os.ERROR_NONE {
-		fmt.printf("Spall uses Zenity for file dialogs! Please install Zenity or launch your trace with the command line\n")
+		fmt.printf("Spall uses Zenity for file dialogs! Please install Zenity or launch your trace via the command line, ex: spall <trace>\n")
 		unix.sys_close(int(fds[0]))
 		unix.sys_close(int(fds[1]))
 		return "", false

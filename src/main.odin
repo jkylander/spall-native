@@ -276,7 +276,7 @@ main :: proc() {
 		return
 	}
 
-	init_bs()
+	platform_init()
 
 	default_cursor = SDL.CreateSystemCursor(.ARROW)
 	pointer_cursor = SDL.CreateSystemCursor(.HAND)
