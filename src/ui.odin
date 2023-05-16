@@ -320,8 +320,8 @@ draw_header :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState
 
 		// Process All Events
 		if button(rects, Rect{cursor_x, (header_rect.h / 2) - (button_height / 2), button_width, button_height}, "\uf1fe", "get stats for the whole file", .IconFont, 0, ui_state.width) {
-			trace.stats_start_time = f64(trace.total_min_time)
-			trace.stats_end_time = f64(trace.total_max_time)
+			trace.stats_start_time = 0
+			trace.stats_end_time = f64(trace.total_max_time - trace.total_min_time)
 			ui_state.multiselecting = true
 			build_selected_ranges(trace, ui_state)
 		}
