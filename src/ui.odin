@@ -1920,7 +1920,7 @@ init_stat_state :: proc(trace: ^Trace, ui_state: ^UIState) {
 }
 
 process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
-	if stats_state == .Finished {
+	if stats_state == .Finished || stats_state == .NoStats {
 		return
 	}
 
