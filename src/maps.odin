@@ -375,20 +375,20 @@ sm_clear :: proc(v: ^StatMap)  {
 // Address Map hashtable
 AM_LOAD_FACTOR :: 0.70
 // u64 -> u32 map
-AMEntry :: struct {
+AMEntry :: struct #packed {
 	key: u64,
 	val: u32,
 }
 AMMap :: struct {
 	entries: [dynamic]AMEntry,
-	hashes:  [dynamic]int,
+	hashes:  [dynamic]i32,
 	resize_threshold: i64,
 }
 
 am_init :: proc(allocator := context.allocator) -> AMMap {
 	v := AMMap{}
 	v.entries = make([dynamic]AMEntry, 0, allocator)
-	v.hashes = make([dynamic]int, 32, allocator) // must be a power of two
+	v.hashes = make([dynamic]i32, 32, allocator) // must be a power of two
 	for i in 0..<len(v.hashes) {
 		v.hashes[i] = -1
 	}
@@ -402,13 +402,14 @@ am_free :: proc(v: ^AMMap) {
 }
 
 // this is a fibhash.. Replace me if I'm dumb
-am_hash :: proc(key: u64) -> u32 {
-	return u32(key) * 2654435769
+am_hash :: proc(key: u64) -> u64 {
+	return u64(u32(key) * 2654435769)
 }
 
 am_find :: proc (v: ^AMMap, key: u64) -> (u32, bool) {
 	hashes_len := u64(len(v.hashes))
-	hv := u64(am_hash(key)) & (hashes_len - 1)
+	hv := am_hash(key) & (hashes_len - 1)
+
 	for i: u64 = 0; i < hashes_len; i += 1 {
 		idx := (hv + i) & (hashes_len - 1)
 
@@ -433,12 +434,12 @@ am_grow :: proc(v: ^AMMap) {
 
 	v.resize_threshold = i64(f64(len(v.hashes)) * AM_LOAD_FACTOR)
 	for entry, idx in v.entries {
-		am_reinsert(v, entry, idx)
+		am_reinsert(v, entry, i32(idx))
 	}
 }
 
-am_reinsert :: proc(v: ^AMMap, entry: AMEntry, v_idx: int) {
-	hv := u64(am_hash(entry.key)) & u64(len(v.hashes) - 1)
+am_reinsert :: proc(v: ^AMMap, entry: AMEntry, v_idx: i32) {
+	hv := am_hash(entry.key) & u64(len(v.hashes) - 1)
 	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
 		idx := (hv + i) & u64(len(v.hashes) - 1)
 
@@ -455,13 +456,13 @@ am_insert :: proc(v: ^AMMap, key: u64, val: u32) {
 		am_grow(v)
 	}
 
-	hv := u64(am_hash(key)) & u64(len(v.hashes) - 1)
+	hv := am_hash(key) & u64(len(v.hashes) - 1)
 	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
 		idx := (hv + i) & u64(len(v.hashes) - 1)
 
 		e_idx := v.hashes[idx]
 		if e_idx == -1 {
-			v.hashes[idx] = len(v.entries)
+			v.hashes[idx] = i32(len(v.entries))
 			append(&v.entries, AMEntry{key, val})
 			return
 		} else if v.entries[e_idx].key == key {
@@ -483,6 +484,6 @@ am_skew :: proc(v: ^AMMap, skew_size: u64) {
 	}
 
 	for entry, idx in v.entries {
-		am_reinsert(v, entry, idx)
+		am_reinsert(v, entry, i32(idx))
 	}
 }

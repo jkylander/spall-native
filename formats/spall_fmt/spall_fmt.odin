@@ -73,14 +73,14 @@ End_Event_V1 :: struct #packed {
 Begin_Event_V2 :: struct #packed {
 	type:     Manual_Event_Type,
 	category: u8,
-	time:     f64,
+	time:     u64,
 	name_len: u8,
 	args_len: u8,
 }
 
 End_Event_V2 :: struct #packed {
 	type: Manual_Event_Type,
-	time: f64,
+	time: u64,
 }
 
 Pad_Skip :: struct #packed {

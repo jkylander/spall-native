@@ -261,12 +261,13 @@ ms_v2_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, th
 		name := string(data_start[event_sz:event_sz+i64(event.name_len)])
 		args := string(data_start[event_sz+i64(event.name_len):event_sz+i64(event.name_len)+i64(event.args_len)])
 
+		timestamp := i64(ceil_f64(f64(event.time) * trace.stamp_scale))
 		ev := Event{
 			name = in_get(&trace.intern, &trace.string_block, name),
 			args = in_get(&trace.intern, &trace.string_block, args),
 			duration = -1,
 			self_time = 0,
-			timestamp = i64(event.time * 1000 * trace.stamp_scale),
+			timestamp = timestamp,
 		}
 
 		if thread.max_time > ev.timestamp {
@@ -306,7 +307,7 @@ ms_v2_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, th
 			return .PartialRead
 		}
 		event := (^spall_fmt.End_Event_V2)(raw_data(data_start))
-		timestamp := i64(event.time * 1000 * trace.stamp_scale)
+		timestamp := i64(ceil_f64(f64(event.time) * trace.stamp_scale))
 
 		if thread.bande_q.len > 0 {
 			jev_idx := stack_pop_back(&thread.bande_q)

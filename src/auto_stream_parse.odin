@@ -31,8 +31,8 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		return .PartialRead
 	}
 
-	data_start := chunk[chunk_pos(p):]
-	first_lump := (^u64)(raw_data(data_start))^
+	data_start := raw_data(chunk[chunk_pos(p):])
+	first_lump := (^u64)(data_start)^
 	type := spall_fmt.Auto_Event_Type(first_lump >> 56)
 	#partial switch type {
 	case .MicroBegin:
@@ -41,7 +41,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 			return .PartialRead
 		}
 
-		event := (^spall_fmt.MicroBegin_Event)(raw_data(data_start))
+		event := (^spall_fmt.MicroBegin_Event)(data_start)
 		raw_time := (event.time_and_type << 8) >> 8
 
 		name, ok := am_find(&trace.addr_map, event.address)
@@ -95,7 +95,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 			return .PartialRead
 		}
 
-		event := (^spall_fmt.MicroEnd_Event)(raw_data(data_start))
+		event := (^spall_fmt.MicroEnd_Event)(data_start)
 		raw_time := (event.time_and_type << 8) >> 8
 
 		timestamp := i64(ceil_f64(f64(raw_time) * trace.stamp_scale))
