@@ -1117,17 +1117,17 @@ json_generate_selftimes :: proc(trace: ^Trace) {
 				}
 
 				for ev, e_idx in &depth.events {
-					depth := tm.depths[d_idx+1]
-					tree := depth.tree
+					depth := &tm.depths[d_idx+1]
+					tree := &depth.tree
 
-					tree_stack := [128]uint{}
+					tree_stack := [128]int{}
 					stack_len := 0
 
 					start_time := ev.timestamp - trace.total_min_time
 					end_time := ev.timestamp + bound_duration(&ev, tm.max_time) - trace.total_min_time
 
 					child_time : i64 = 0
-					tree_stack[0] = depth.head; stack_len += 1
+					tree_stack[0] = 0; stack_len += 1
 					for stack_len > 0 {
 						stack_len -= 1
 
@@ -1143,8 +1143,11 @@ json_generate_selftimes :: proc(trace: ^Trace) {
 							continue
 						}
 
-						if cur_node.tree_child_count == 0 {
-							scan_arr := depth.events[cur_node.event_start_idx:cur_node.event_start_idx+uint(cur_node.event_arr_len)]
+						child_count := get_child_count(depth, tree_idx)
+						if child_count <= 0 {
+							event_count := get_event_count(depth, tree_idx)
+							event_start_idx := get_event_start_idx(depth, tree_idx)
+							scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
 							weight : i64 = 0
 							scan_loop: for scan_ev in &scan_arr {
 								scan_ev_start_time := scan_ev.timestamp - trace.total_min_time
@@ -1163,8 +1166,8 @@ json_generate_selftimes :: proc(trace: ^Trace) {
 							continue
 						}
 
-						for i := cur_node.tree_child_count - 1; i >= 0; i -= 1 {
-							tree_stack[stack_len] = cur_node.tree_start_idx + uint(i); stack_len += 1
+						for i := child_count; i > 0; i -= 1 {
+							tree_stack[stack_len] = get_left_child(tree_idx) + i - 1; stack_len += 1
 						}
 					}
 

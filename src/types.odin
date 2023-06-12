@@ -246,17 +246,12 @@ ChunkNode :: struct #packed {
 
 	avg_color: FVec3,
 	weight: i64,
-
-	tree_start_idx: uint,
-	event_start_idx: uint,
-
-	tree_child_count: i8,
-	event_arr_len: i8,
 }
 Depth :: struct {
-	head: uint,
-	tree: [dynamic]ChunkNode,
+	tree: []ChunkNode,
 	events: [dynamic]Event,
+	leaf_count:   int,
+	overhang_len: int,
 }
 
 Thread :: struct {

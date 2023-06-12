@@ -6,6 +6,7 @@ import "core:math"
 import "core:runtime"
 import "core:slice"
 import "core:strings"
+import "core:os"
 
 import "core:prof/spall"
 
@@ -603,10 +604,10 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 				}
 
 				// If we blow this, we're in space
-				tree_stack := [128]uint{}
+				tree_stack := [128]int{}
 				stack_len := 0
 
-				tree_stack[0] = depth.head; stack_len += 1
+				tree_stack[0] = 0; stack_len += 1
 				for stack_len > 0 {
 					stack_len -= 1
 
@@ -646,8 +647,9 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 						if ui_state.multiselecting {
 							if found_rid != -1 {
 								range := trace.selected_ranges[found_rid]   
-								if !range_in_range(cur_node.event_start_idx, cur_node.event_start_idx+uint(cur_node.event_arr_len), 
-												   uint(range.start), uint(range.end)) {
+								event_count := get_event_count(&depth, tree_idx)
+								event_start_idx := get_event_start_idx(&depth, tree_idx)
+								if !range_in_range(event_start_idx, event_start_idx+event_count, range.start, range.end) {
 									rect_color = grey
 								}
 							} else {
@@ -663,8 +665,11 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 					}
 
 					// we're at a bottom node, draw the whole thing
-					if cur_node.tree_child_count == 0 {
-						scan_arr := depth.events[cur_node.event_start_idx:cur_node.event_start_idx+uint(cur_node.event_arr_len)]
+					child_count := get_child_count(&depth, tree_idx)
+					if child_count <= 0 {
+						event_count := get_event_count(&depth, tree_idx)
+						event_start_idx := get_event_start_idx(&depth, tree_idx)
+						scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
 						y := ui_state.rect_height * f64(d_idx)
 						h := ui_state.rect_height
 
@@ -673,7 +678,6 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 							duration := f64(bound_duration(&ev, thread.max_time))
 							w := max(duration * cam.current_scale, 2.0)
 							xm := x * cam.target_scale
-
 
 							// Carefully extract the [start, end] interval of the rect so that we can clip the left
 							// side to 0 before sending it to draw_rect, so we can prevent f32 (f64?) precision
@@ -696,7 +700,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 
 							ev_name := in_getstr(&trace.string_block, ev.name)
 							idx := name_color_idx(ev.name)
-							e_idx := int(cur_node.event_start_idx) + de_id
+							e_idx := event_start_idx + de_id
 
 							rect_color := trace.color_choices[idx]
 							grey := greyscale(trace.color_choices[idx])
@@ -763,8 +767,9 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 						continue
 					}
 
-					for i := cur_node.tree_child_count - 1; i >= 0; i -= 1 {
-						tree_stack[stack_len] = cur_node.tree_start_idx + uint(i); stack_len += 1
+					for i := child_count; i > 0; i -= 1 {
+						next_idx := get_left_child(tree_idx) + i - 1
+						tree_stack[stack_len] = next_idx; stack_len += 1
 					}
 				}
 			}
@@ -813,22 +818,21 @@ draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight
 			}
 
 			thread := &trace.processes[p_idx].threads[t_idx]
-			depth := thread.depths[0]
+			depth := &thread.depths[0]
 			tree := depth.tree
 
 			// If we blow this, we're in space
-			tree_stack := [128]uint{}
+			tree_stack := [128]int{}
 			stack_len := 0
 
 			alpha := u8(255.0 / f64(layer_count))
-			tree_stack[0] = depth.head; stack_len += 1
+			tree_stack[0] = 0; stack_len += 1
 			for stack_len > 0 {
 				stack_len -= 1
 
 				tree_idx := tree_stack[stack_len]
 				if tree_idx >= len(tree) {
 					fmt.printf("%d, %d\n", p_idx, t_idx)
-					fmt.printf("%d\n", depth.head)
 					fmt.printf("%d\n", stack_len)
 					fmt.printf("%v\n", tree_stack)
 					fmt.printf("%v\n", tree)
@@ -861,8 +865,11 @@ draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight
 				}
 
 				// we're at a bottom node, draw the whole thing
-				if cur_node.tree_child_count == 0 {
-					scan_arr := depth.events[cur_node.event_start_idx:cur_node.event_start_idx+uint(cur_node.event_arr_len)]
+				child_count := get_child_count(depth, tree_idx)
+				if child_count <= 0 {
+					event_count := get_event_count(depth, tree_idx)
+					event_start_idx := get_event_start_idx(depth, tree_idx)
+					scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
 					for ev, de_id in &scan_arr {
 						x := f64(ev.timestamp - trace.total_min_time)
 						duration := f64(bound_duration(&ev, thread.max_time))
@@ -887,8 +894,8 @@ draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight
 					continue
 				}
 
-				for i := cur_node.tree_child_count - 1; i >= 0; i -= 1 {
-					tree_stack[stack_len] = cur_node.tree_start_idx + uint(i); stack_len += 1
+				for i := child_count; i > 0; i -= 1 {
+					tree_stack[stack_len] = get_left_child(tree_idx) + i - 1; stack_len += 1
 				}
 			}
 		}
@@ -957,10 +964,10 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 				y := tree_y + (mini_rect_height * f64(d_idx))
 
 				// If we blow this, we're in space
-				tree_stack := [128]uint{}
+				tree_stack := [128]int{}
 				stack_len := 0
 
-				tree_stack[0] = depth.head; stack_len += 1
+				tree_stack[0] = 0; stack_len += 1
 				for stack_len > 0 {
 					stack_len -= 1
 
@@ -990,8 +997,9 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 						if ui_state.multiselecting {
 							if found_rid != -1 {
 								range := trace.selected_ranges[found_rid]   
-								if !range_in_range(cur_node.event_start_idx, cur_node.event_start_idx+uint(cur_node.event_arr_len), 
-												   uint(range.start), uint(range.end)) {
+								event_count := get_event_count(&depth, tree_idx)
+								event_start_idx := get_event_start_idx(&depth, tree_idx)
+								if !range_in_range(event_start_idx, event_start_idx+event_count, range.start, range.end) {
 									rect_color = grey
 								}
 							} else {
@@ -1004,8 +1012,11 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 					}
 
 					// we're at a bottom node, draw the whole thing
-					if cur_node.tree_child_count == 0 {
-						scan_arr := depth.events[cur_node.event_start_idx:cur_node.event_start_idx+uint(cur_node.event_arr_len)]
+					child_count := get_child_count(&depth, tree_idx)
+					if child_count <= 0 {
+						event_count := get_event_count(&depth, tree_idx)
+						event_start_idx := get_event_start_idx(&depth, tree_idx)
+						scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
 						for ev, de_id in &scan_arr {
 							x := f64(ev.timestamp - trace.total_min_time)
 							duration := f64(bound_duration(&ev, thread.max_time))
@@ -1026,7 +1037,7 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 							r_w   := end_x - r_x
 
 							idx := name_color_idx(ev.name)
-							e_idx := int(cur_node.event_start_idx) + de_id
+							e_idx := event_start_idx + de_id
 
 							rect_color := trace.color_choices[idx]
 							grey := greyscale(trace.color_choices[idx])
@@ -1046,8 +1057,8 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 						continue
 					}
 
-					for i := cur_node.tree_child_count - 1; i >= 0; i -= 1 {
-						tree_stack[stack_len] = cur_node.tree_start_idx + uint(i); stack_len += 1
+					for i := child_count; i > 0; i -= 1 {
+						tree_stack[stack_len] = get_left_child(tree_idx) + i - 1; stack_len += 1
 					}
 				}
 			}
