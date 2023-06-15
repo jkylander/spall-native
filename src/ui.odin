@@ -651,6 +651,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 							if found_rid != -1 {
 								range := trace.selected_ranges[found_rid]   
 								ev_start, ev_end := get_event_range(&depth, tree_idx)
+
 								if !range_in_range(ev_start, ev_end, range.start, range.end) {
 									rect_color = grey
 								}
@@ -669,12 +670,11 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 					// we're at a bottom node, draw the whole thing
 					child_count := get_child_count(&depth, tree_idx)
 					if child_count <= 0 {
-						event_count := get_event_count(&depth, tree_idx)
-						event_start_idx := get_event_start_idx(&depth, tree_idx)
-						scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
+						event_start_idx, event_end_idx := get_event_range(&depth, tree_idx)
+
+						scan_arr := depth.events[event_start_idx:event_end_idx]
 						y := ui_state.rect_height * f64(d_idx)
 						h := ui_state.rect_height
-
 						for ev, de_id in &scan_arr {
 							x := f64(ev.timestamp - trace.total_min_time)
 							duration := f64(bound_duration(&ev, thread.max_time))
@@ -1001,9 +1001,8 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 					// we're at a bottom node, draw the whole thing
 					child_count := get_child_count(&depth, tree_idx)
 					if child_count <= 0 {
-						event_count := get_event_count(&depth, tree_idx)
-						event_start_idx := get_event_start_idx(&depth, tree_idx)
-						scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
+						event_start_idx, event_end_idx := get_event_range(&depth, tree_idx)
+						scan_arr := depth.events[event_start_idx:event_end_idx]
 						for ev, de_id in &scan_arr {
 							x := f64(ev.timestamp - trace.total_min_time)
 							duration := f64(bound_duration(&ev, thread.max_time))

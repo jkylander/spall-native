@@ -252,6 +252,7 @@ Depth :: struct {
 	events: [dynamic]Event,
 	leaf_count:   int,
 	overhang_len: int,
+	full_leaves: int,
 }
 
 Thread :: struct {

@@ -130,15 +130,24 @@ gen_event_color :: proc(trace: ^Trace, _events: []Event, thread_max: i64, node: 
 
 	events := _events
 
+	if len(events) == 1 {
+		ev := &events[0]
+		duration := bound_duration(ev, thread_max)
+		idx := name_color_idx(ev.name)
+		node.avg_color = trace.color_choices[idx]
+
+		// if the event was started with no end, *right* as the trace quit, we'll get a duration of 0
+		// make this 1 so it has *some* LOD contribution
+		node.weight = max(duration, 1)
+		return
+	}
+
 	color := FVec3{}
 	color_weights := [COLOR_CHOICES]i64{}
 	for ev in &events {
 		idx := name_color_idx(ev.name)
-
 		duration := bound_duration(&ev, thread_max)
-		if duration <= 0 {
-			duration = 1
-		}
+
 		color_weights[idx] += duration
 		total_weight += duration
 	}
@@ -147,10 +156,6 @@ gen_event_color :: proc(trace: ^Trace, _events: []Event, thread_max: i64, node: 
 	for weight, idx in color_weights {
 		color += trace.color_choices[idx] * f32(weight)
 		weights_sum += weight
-	}
-	if weights_sum <= 0 {
-		fmt.printf("Invalid weights sum! events: %d, %d, %d\n", len(events), weights_sum, total_weight)
-		push_fatal(SpallError.Bug)
 	}
 	color /= f32(weights_sum)
 
@@ -228,6 +233,12 @@ chunk_events :: proc(trace: ^Trace) {
 					posthang_rank += 1
 				}
 
+				_tmp := 1
+				for _tmp < leaf_count {
+					_tmp = _tmp * CHUNK_NARY_WIDTH
+				}
+				depth.full_leaves = _tmp
+
 				overhang_len := len(tree) - overhang_idx
 				if prehang_rank == posthang_rank {
 					overhang_len = 0
@@ -302,31 +313,48 @@ get_child_count :: proc(depth: ^Depth, idx: int) -> int {
 	return child_count
 }
 
+linearize_leaf :: proc(depth: ^Depth, idx: int, loc := #caller_location) -> int {
+	overhang_start := len(depth.tree) - depth.overhang_len
+	leaf_start := len(depth.tree) - depth.leaf_count
+
+	ret := 0
+	if depth.overhang_len == 0 {
+		ret = idx - leaf_start
+	} else if idx >= overhang_start {
+		ret = idx - overhang_start
+	} else {
+		ret = (idx - leaf_start) + depth.overhang_len
+	}
+	return ret
+}
+
 // This *must* take a leaf idx
 get_event_count :: proc(depth: ^Depth, idx: int) -> int {
-	last_prehang := len(depth.tree) - depth.overhang_len - 1
-	if idx == last_prehang {
-		ret := len(depth.events) % BUCKET_SIZE
-		if ret == 0 { return BUCKET_SIZE }
-		return ret
+	linear_idx := linearize_leaf(depth, idx)
+
+	ret := BUCKET_SIZE
+	// if we're the last index in the tree, determine the leftover
+	if linear_idx == (depth.leaf_count - 1) {
+		ret = len(depth.events) % BUCKET_SIZE
+
+
+		// If we fall exactly in the bucket?
+		if ret == 0 {
+			ret = BUCKET_SIZE
+		}
 	}
-	return BUCKET_SIZE
+
+	return ret
 }
 // This *must* take a leaf idx
 get_event_start_idx :: proc(depth: ^Depth, idx: int) -> int {
-	leaf_start := len(depth.tree) - depth.leaf_count - 1
-	overhang_start := len(depth.tree) - depth.overhang_len - 1
-	start_idx := 0
+	linear_idx := linearize_leaf(depth, idx)
+	return linear_idx * BUCKET_SIZE
+}
 
-	if idx > overhang_start {
-		i := idx - overhang_start - 1
-		start_idx = (i * BUCKET_SIZE)
-	} else {
-		i := idx - leaf_start - 1
-		ev_offset := depth.overhang_len * BUCKET_SIZE
-		start_idx = (i * BUCKET_SIZE) + ev_offset
-	}
-	return start_idx
+is_leaf :: proc(depth: ^Depth, idx: int) -> bool {
+	ret := idx >= (len(depth.tree) - depth.leaf_count)
+	return ret
 }
 
 get_left_leaf :: proc(depth: ^Depth, idx: int) -> int {
@@ -339,21 +367,42 @@ get_left_leaf :: proc(depth: ^Depth, idx: int) -> int {
 	return last_tmp
 }
 get_right_leaf :: proc(depth: ^Depth, idx: int) -> int {
+	if is_leaf(depth, idx) {
+		return idx
+	}
+
+	full_internal_nodes := depth.full_leaves / (CHUNK_NARY_WIDTH - 1)
+	full_tree_count := full_internal_nodes + depth.full_leaves
+
+	internal_nodes := depth.leaf_count / (CHUNK_NARY_WIDTH - 1)
+	total_tree_count := internal_nodes + depth.leaf_count
+
+	prev_leaves := depth.full_leaves / CHUNK_NARY_WIDTH
+
 	tmp_idx := idx
 	last_tmp := idx
 	for tmp_idx < len(depth.tree) {
 		last_tmp = tmp_idx
 		tmp_idx = (CHUNK_NARY_WIDTH * tmp_idx) + CHUNK_NARY_WIDTH
 	}
-	return min(last_tmp, len(depth.tree) - 1)
+
+	ret := last_tmp
+	edge_case_count := total_tree_count + CHUNK_NARY_WIDTH - 1
+	if edge_case_count >= full_tree_count {
+		ret = len(depth.tree) - 1
+	}
+	return ret
 }
+
 get_event_range :: proc(depth: ^Depth, idx: int) -> (int, int) {
 	left_idx := get_left_leaf(depth, idx)
 	right_idx := get_right_leaf(depth, idx)
 	event_start_idx := get_event_start_idx(depth, left_idx)
 	event_count := get_event_count(depth, right_idx)
 
-	leaf_count := right_idx - left_idx
+	linear_right_leaf := linearize_leaf(depth, right_idx)
+	linear_left_leaf := linearize_leaf(depth, left_idx)
+	leaf_count := linear_right_leaf - linear_left_leaf
 	ev_count := (leaf_count * BUCKET_SIZE) + event_count
 
 	start := event_start_idx

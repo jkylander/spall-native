@@ -144,13 +144,17 @@ hsv2rgb :: proc(c: FVec3) -> FVec3 {
 	return FVec3{result.x, result.y, result.z}
 }
 
-hex_to_fvec :: proc "contextless" (v: u32) -> BVec4 {
+hex_to_bvec :: proc "contextless" (v: u32) -> BVec4 {
 	a := u8(v >> 24)
 	r := u8(v >> 16)
 	g := u8(v >> 8)
 	b := u8(v >> 0)
 
 	return BVec4{r, g, b, a}
+}
+
+bvec_to_fvec :: proc "contextless" (c: BVec4) -> FVec3 {
+	return FVec3{f32(c.r), f32(c.g), f32(c.b)}
 }
 
 greyscale :: proc "contextless" (c: FVec3) -> FVec3 {
