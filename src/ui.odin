@@ -533,7 +533,6 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 		if rem < 0.3      { division -= (division * 0.8) } // multiples of 2
 		else if rem < 0.6 { division -= (division / 2)   } // multiples of 5
 
-
 		display_range_start := (-cam.pan.x / cam.current_scale) * trace.stamp_scale
 		display_range_end := ((full_flamegraph_rect.w - cam.pan.x) / cam.current_scale) * trace.stamp_scale
 
@@ -784,15 +783,50 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 	// relative time back-cover
 	draw_rect(rects, Rect{ui_state.side_pad, full_flamegraph_rect.y, full_flamegraph_rect.w, flamegraph_toptext_height}, bg_color)
 
-	// timestamps for subdivision lines
-	for i := 0; i < ticks; i += 1 {
+	// draw timestamps for subdivision lines
+	time_high_y := full_flamegraph_rect.y + flamegraph_toptext_height - (2 * em) - (2 * (em / 3))
+	time_tick_y := full_flamegraph_rect.y + flamegraph_toptext_height - (em)     - (2 * (em / 3))
+
+	div_clump_idx, fract_val, period := get_div_clump_idx(division)
+	text_side_pad := em
+	old_tick_val: f64 = 0
+	early_str, _, early_tick := clump_time(f_round_down(draw_tick_start, division), div_clump_idx)
+	old_tick_val = early_tick
+
+	for i := -1; i < ticks; i += 1 {
 		tick_time := draw_tick_start + (f64(i) * division)
 		scaled_tick_time := tick_time / trace.stamp_scale
 		x_off := (scaled_tick_time * cam.current_scale) + cam.pan.x
 
-		time_str := time_fmt(tick_time)
-		text_width := measure_text(time_str, .PSize, .DefaultFont)
-		draw_text(rects, time_str, Vec2{ui_state.side_pad + x_off - (text_width / 2), full_flamegraph_rect.y + (flamegraph_toptext_height / 2) - (em / 3)}, .PSize, .DefaultFont, text_color)
+		start_str, tick_str, new_tick_val := clump_time(tick_time, div_clump_idx)
+
+		draw_top := false
+		if new_tick_val != old_tick_val || fract_val > (period / 2) {
+			draw_top = true
+		}
+
+		old_tick_val = new_tick_val
+		top_text_width := measure_text(start_str, .PSize, .DefaultFont)
+		tick_text_width := measure_text(tick_str, .PSize, .DefaultFont)
+
+		if draw_top {
+			top_x := ui_state.side_pad + x_off - ((top_text_width + text_side_pad) / 2)
+			draw_rect(rects, Rect{top_x, time_high_y - (text_side_pad / 2), top_text_width + text_side_pad, em + (text_side_pad / 2)}, tabbar_color)
+			draw_text(rects, start_str, Vec2{top_x + (text_side_pad / 2), time_high_y - (text_side_pad / 2)}, .PSize, .DefaultFont, text_color)
+		}
+		draw_text(rects, tick_str, Vec2{ui_state.side_pad + x_off - (tick_text_width / 2), time_tick_y}, .PSize, .DefaultFont, text_color)
+	}
+
+	{
+		scaled_tick_time := draw_tick_start / trace.stamp_scale
+		x_off := (scaled_tick_time * cam.current_scale) + cam.pan.x
+		if len(early_str) > 0 {
+			top_text_width := measure_text(early_str, .PSize, .DefaultFont)
+			top_x := ui_state.side_pad + x_off - ((top_text_width + text_side_pad) / 2)
+			early_x := max(ui_state.side_pad, top_x)
+			draw_rect(rects, Rect{early_x, time_high_y - (text_side_pad / 2), top_text_width + text_side_pad, em + (text_side_pad / 2)}, tabbar_color)
+			draw_text(rects, early_str, Vec2{early_x + (text_side_pad / 2), time_high_y - (text_side_pad / 2)}, .PSize, .DefaultFont, text_color)
+		}
 	}
 }
 
@@ -1338,9 +1372,9 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 			args_str := in_getstr(&trace.string_block, event.args)
 			draw_text(rects, fmt.tprintf(" user data: %s", args_str), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 		}
-		draw_text(rects, fmt.tprintf("start time:%s", time_fmt(disp_time(trace, f64(event.timestamp - trace.total_min_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
-		draw_text(rects, fmt.tprintf("  duration:%s", time_fmt(disp_time(trace, f64(bound_duration(&event, thread.max_time))))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
-		draw_text(rects, fmt.tprintf(" self time:%s", time_fmt(disp_time(trace, f64(event.self_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf("start time: %s", time_fmt(disp_time(trace, f64(event.timestamp - trace.total_min_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf("  duration: %s", time_fmt(disp_time(trace, f64(bound_duration(&event, thread.max_time))))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf(" self time: %s", time_fmt(disp_time(trace, f64(event.self_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 
 		// If we've got stats cooking already
 	} else if stats_state == .Pass1 || stats_state == .Pass2 {

@@ -116,7 +116,7 @@ idx_pos := [?]glm.vec2{
 
 reset_flamegraph_camera :: proc(trace: ^Trace, ui_state: ^UIState) {
 	cam = Camera{Vec2{0, 0}, Vec2{0, 0}, 0, 1, 1}
-	if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 100000; trace.stamp_scale = 1; }
+	if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 100000000000000; trace.stamp_scale = 1; }
 
 	start_time: f64 = 0
 	end_time  := f64(trace.total_max_time - trace.total_min_time)
@@ -641,7 +641,7 @@ main :: proc() {
 		ui_state.rect_height               = rect_height
 		ui_state.topbars_height            = topbars_height
 		ui_state.top_line_gap              = top_line_gap
-		ui_state.flamegraph_toptext_height = (ui_state.top_line_gap * 2) + em
+		ui_state.flamegraph_toptext_height = (ui_state.top_line_gap * 2) + (2 * em)
 		ui_state.flamegraph_header_height  = ui_state.flamegraph_toptext_height + em
 
 		ui_state.header_rect             = Rect{0, 0, width, header_height}
@@ -674,7 +674,7 @@ main :: proc() {
 			reset_flamegraph_camera(trace, &ui_state)
 
 			if trace.file_name != "" {
-				name := fmt.ctprintf("%s - spall beta 0.1", trace.base_name)
+				name := fmt.ctprintf("%s - spall beta 0.2", trace.base_name)
 				SDL.SetWindowTitle(window, name)
 			}
 			post_loading = false

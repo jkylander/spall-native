@@ -104,6 +104,8 @@ ease_in_out :: proc(t: f32) -> f32 {
     return -(math.cos(math.PI * t) - 1) / 2;
 }
 
+ONE_DAY    :: 1000 * 1000 * 1000 * 60 * 60 * 24
+ONE_HOUR   :: 1000 * 1000 * 1000 * 60 * 60
 ONE_MINUTE :: 1000 * 1000 * 1000 * 60
 ONE_SECOND :: 1000 * 1000 * 1000
 ONE_MILLI  :: 1000 * 1000
@@ -144,97 +146,203 @@ my_write_float :: proc(b: ^strings.Builder, f: f64, prec: int) -> (n: int) {
 	return strings.write_float(b, f, 'f', prec, 8*size_of(f))
 }
 
+TimeUnits :: struct {
+	unit: string,
+	period: f64,
+	digits: int,
+}
+time_unit_table := [?]TimeUnits{
+	{"d", max(f64), 3},
+	{"h",       24, 2},
+	{"m",       60, 2},
+	{"s",       60, 2},
+	{"ms",    1000, 3},
+	{"μs",    1000, 3},
+	{"ns",    1000, 3},
+	{"ps",    1000, 3},
+}
+
+get_div_clump_idx :: proc(divider: f64) -> (int, f64, f64) {
+	div_clump_idx := 0
+
+	time_fracts := [?]f64{
+		divider / ONE_DAY,
+		divider / ONE_HOUR,
+		divider / ONE_MINUTE,
+		divider / ONE_SECOND,
+		divider / ONE_MILLI,
+		divider / ONE_MICRO,
+		divider,
+		math.round(divider * 1000),
+	}
+
+	for fract, idx in time_fracts {
+		tmp : f64 = 0
+
+		tu := time_unit_table[idx]
+		if idx == len(time_fracts) - 1 {
+			tmp = f64(int(fract) % int(tu.period))
+		} else {
+			tmp = math.floor(math.mod(fract, tu.period))
+		}
+
+		if tmp != 0 {
+			div_clump_idx = idx
+		}
+	}
+
+	fract := time_fracts[div_clump_idx]
+	tu    := time_unit_table[div_clump_idx]
+	return div_clump_idx, fract, tu.period
+}
+
+
+
+// if bool is true, draw the top string
+clump_time :: proc(time: f64, div_clump_idx: int) -> (string, string, f64) {
+	start_b := strings.builder_make(context.temp_allocator)
+	tick_b := strings.builder_make(context.temp_allocator)
+
+	_time := time
+	if time < 0 {
+		_time = math.abs(time)
+	}
+
+	// preserving precision as much as possible while getting the fractional bits
+	picos := f64(i64(math.round(_time * 1000)) % 1000)
+	nanos  := math.floor(math.mod(_time, 1000))
+	micros := math.floor(math.mod(_time / ONE_MICRO, 1000))
+	millis := math.floor(math.mod(_time / ONE_MILLI, 1000))
+	secs   := math.floor(math.mod(_time / ONE_SECOND, 60))
+	mins   := math.floor(math.mod(_time / ONE_MINUTE, 60))
+	hours  := math.floor(math.mod(_time / ONE_HOUR,   24))
+	days   := math.floor(_time / ONE_DAY)
+
+	clumps := [?]f64{days, hours, mins, secs, millis, micros, nanos, picos}
+
+	b := &start_b
+	tick_val := 0.0
+	last_val := false
+	first_num := true
+	for clump, idx in clumps {
+		tu := time_unit_table[idx]
+
+		if idx == div_clump_idx {
+			b = &tick_b
+
+			if idx > 0 {
+				tick_val = clumps[idx - 1]
+			}
+			last_val = true
+		}
+
+		if !last_val && (clump <= 0 || clump >= tu.period) {
+			continue
+		}
+
+		if !first_num && !last_val {
+			strings.write_rune(b, ' ')
+		}
+		my_write_float(b, clump, 0)
+		strings.write_string(b, tu.unit)
+
+		if last_val {
+			break
+		}
+		first_num = false
+	}
+
+	start_str := strings.to_string(start_b)
+	if len(start_str) == 0 {
+		if div_clump_idx > 0 {
+			strings.write_string(&start_b, "0")
+			strings.write_string(&start_b, time_unit_table[div_clump_idx - 1].unit)
+		}
+	}
+	start_str = strings.to_string(start_b)
+	tick_str := strings.to_string(tick_b)
+	return start_str, tick_str, tick_val
+}
+
 time_fmt :: proc(time: f64) -> string {
 	b := strings.builder_make(context.temp_allocator)
 
-	mins := math.floor(math.mod(time / ONE_MINUTE, 60))
-	if mins > 0 && mins < 60 {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, mins, 0)
-		strings.write_byte(&b, 'm')
-	} 
-
-	secs := math.floor(math.mod(time / ONE_SECOND, 60))
-	if secs > 0 && secs < 60 {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, secs, 0)
-		strings.write_byte(&b, 's')
-	} 
-
-	millis := math.floor(math.mod(time / ONE_MILLI, 1000))
-	if millis > 0 && millis < 1000 {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, millis, 0)
-		strings.write_string(&b, "ms")
-	} 
-
-	micros := math.floor(math.mod(time / ONE_MICRO, 1000))
-	if micros > 0 && micros < 1000 {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, micros, 0)
-		strings.write_string(&b, "μs")
+	if time == 0 {
+		strings.write_string(&b, " 0ns")
+		return strings.to_string(b)
 	}
 
-	nanos := math.floor(math.mod(time, 1000))
-	if (nanos > 0 && nanos < 1000) || time == 0 {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, nanos, 0)
-		strings.write_string(&b, "ns")
+	_time := time
+	if time < 0 {
+		strings.write_rune(&b, '-')
+		_time = math.abs(time)
 	}
 
-	_, picos := math.modf(time)
-	picos = math.floor(picos * 1000)
-	if (picos > 0 && picos < 1000) {
-		strings.write_byte(&b, ' ')
-		my_write_float(&b, picos, 0)
-		strings.write_string(&b, "ps")
+
+	// preserving precision as much as possible while getting the fractional bits
+	picos := f64(i64(math.round(_time * 1000)) % 1000)
+
+	nanos  := math.floor(math.mod(_time, 1000))
+	micros := math.floor(math.mod(_time / ONE_MICRO, 1000))
+	millis := math.floor(math.mod(_time / ONE_MILLI, 1000))
+	secs   := math.floor(math.mod(_time / ONE_SECOND, 60))
+	mins   := math.floor(math.mod(_time / ONE_MINUTE, 60))
+	hours  := math.floor(math.mod(_time / ONE_HOUR,   24))
+	days  := math.floor(_time / ONE_DAY)
+
+	clumps := [?]f64{days, hours, mins, secs, millis, micros, nanos, picos}
+
+	first_num := true
+	for clump, idx in clumps {
+		tu := time_unit_table[idx]
+		if (clump <= 0 || clump >= tu.period) {
+			continue
+		}
+
+		if !first_num {
+			strings.write_rune(&b, ' ')
+		}
+		my_write_float(&b, clump, 0)
+		strings.write_string(&b, tu.unit)
+		first_num = false
 	}
 
 	return strings.to_string(b)
 }
 
-TimeClump :: struct {
-	value: f64,
-	unit: string,
-	max: f64,
-	digits: int,
-}
 
 measure_fmt :: proc(time: f64) -> string {
 	b := strings.builder_make(context.temp_allocator)
 
-	_, picos := math.modf(time)
-	picos = math.floor(picos * 1000)
+	// preserving precision as much as possible while getting the fractional bits
+	picos := f64(i64(math.round(time * 1000)) % 1000)
 
-	nanos := math.floor(math.mod(time, 1000))
+	nanos  := math.floor(math.mod(time, 1000))
 	micros := math.floor(math.mod(time / ONE_MICRO, 1000))
 	millis := math.floor(math.mod(time / ONE_MILLI, 1000))
-	secs := math.floor(math.mod(time / ONE_SECOND, 60))
-	mins := math.floor(math.mod(time / ONE_MINUTE, 60))
+	secs   := math.floor(math.mod(time / ONE_SECOND, 60))
+	mins   := math.floor(math.mod(time / ONE_MINUTE, 60))
+	hours  := math.floor(math.mod(time / ONE_HOUR,   24))
+	days  := math.floor(time / ONE_DAY)
 
-	clumps := [?]TimeClump{
-		{mins,   "m",    60, 2},
-		{secs,   "s",    60, 2},
-		{millis, "ms", 1000, 3},
-		{micros, "μs", 1000, 3},
-		{nanos,  "ns", 1000, 3},
-		{picos,  "ps", 1000, 3},
-	}
-
+	clumps := [?]f64{days, hours, mins, secs, millis, micros, nanos, picos}
 	for clump, idx in clumps {
-		if (clump.value > 0) && (clump.value < clump.max) {
-			if (strings.builder_len(b) > 0 && idx > 0) {
-				strings.write_rune(&b, ' ')
-			}
-
-			digits := int(math.log10(clump.value) + 1)
-			for ;digits < clump.digits; digits += 1 {
-				strings.write_byte(&b, ' ')
-			}
-
-			my_write_float(&b, clump.value, 0)
-			strings.write_string(&b, clump.unit)
+		tu := time_unit_table[idx]
+		if (clump <= 0 || clump >= tu.period) {
+			continue
 		}
+
+		if (strings.builder_len(b) > 0 && idx > 0) {
+			strings.write_rune(&b, ' ')
+		}
+
+		digits := int(math.log10(clump) + 1)
+		for ;digits < tu.digits; digits += 1 {
+			strings.write_byte(&b, ' ')
+		}
+
+		my_write_float(&b, clump, 0)
+		strings.write_string(&b, tu.unit)
 	}
 
 	return strings.to_string(b)
