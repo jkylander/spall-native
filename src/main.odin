@@ -109,23 +109,13 @@ idx_pos := [?]glm.vec2{
 set_flamegraph_camera :: proc(trace: ^Trace, ui_state: ^UIState, start_ticks, duration_ticks: i64) {
 	cam.vel = Vec2{}
 
-	adj_duration_time  := f64(duration_ticks) * trace.stamp_scale
-
-	cam.current_scale = rescale(1.0, 0, adj_duration_time, 0, ui_state.full_flamegraph_rect.w)
+	cam.current_scale = rescale(1.0, 0, f64(duration_ticks), 0, ui_state.full_flamegraph_rect.w)
 	cam.target_scale = cam.current_scale
 
-	adj_start_ticks := start_ticks - trace.total_min_time
-	adj_start_time := f64(adj_start_ticks) * trace.stamp_scale
+	adj_start_ticks := f64(start_ticks - trace.total_min_time)
 
-	cam.pan.x = -(adj_start_time * cam.current_scale)
+	cam.pan.x = -(adj_start_ticks * cam.current_scale)
 	cam.target_pan_x = cam.pan.x
-
-	start, end := get_current_window(trace, cam, ui_state)
-	real_size   := time_fmt(adj_duration_time)
-	window_size := time_fmt(f64(end - start))
-
-	real_start    := time_fmt(adj_start_time)
-	window_start  := time_fmt(f64(start))
 }
 
 reset_flamegraph_camera :: proc(trace: ^Trace, ui_state: ^UIState) {
