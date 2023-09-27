@@ -10,6 +10,7 @@
 #define SPALL_IS_LINUX   0
 #define SPALL_IS_GCC     0
 #define SPALL_IS_CPP     0
+#define SPALL_IS_X64     0
 
 #ifdef __cplusplus
 	#undef SPALL_IS_CPP
@@ -33,6 +34,10 @@
 #ifdef __GNUC__
 	#undef SPALL_IS_GCC
 	#define SPALL_IS_GCC 1
+#endif
+#if defined(__x86_64__) || defined(_M_AMD64)
+	#undef SPALL_IS_X64
+	#define SPALL_IS_X64 1
 #endif
 
 #ifdef __cplusplus
@@ -573,6 +578,24 @@ void (spall_auto_thread_quit)(void) {
     spall_buffer = NULL;
 }
 
+SPALL_FN void *spall_canonical_addr(void* fn) {
+	// sometimes the pointer we get back is to a jump table; walk past that first layer.
+
+	void *ret = fn;
+#if SPALL_IS_X64
+	unsigned char *fn_data = (unsigned char *)fn;
+	if (fn_data[0] == 0xE9) {
+		// JMP rel32
+		int32_t target = *(int32_t*) &fn_data[1];
+
+		int jump_inst_size = 5;
+		ret = (void *)(fn_data + jump_inst_size + target);
+	}
+#endif
+
+	return ret;
+}
+
 bool spall_auto_init(char *filename) {
     if (!filename) return false;
     memset(&spall_ctx, 0, sizeof(spall_ctx));
@@ -589,7 +612,7 @@ bool spall_auto_init(char *filename) {
     header.magic_header = 0xABADF00D;
     header.version = 1;
     header.timestamp_unit = spall_ctx.stamp_scale;
-    header.known_address = (uint64_t)spall_auto_init;
+    header.known_address = (uint64_t)spall_canonical_addr((void *)spall_auto_init);
 
     char *program_path;
     if (!get_program_path(&program_path)) { return false; }
@@ -632,6 +655,7 @@ SPALL_NOINSTRUMENT void __cyg_profile_func_enter(void *fn, void *caller) {
 #if SPALL_IS_MSVC
     fn = ((char*)fn - 5);
 #endif
+    fn = spall_canonical_addr(fn);
 
     spall_thread_running = false;
     spall_buffer_micro_begin((uint64_t)fn, (uint64_t)caller);

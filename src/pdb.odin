@@ -139,7 +139,7 @@ load_pdb :: proc(trace: ^Trace, section_buffer: []u8, pdb_buffer: []u8) -> bool 
 					proc_symbol := slice_to_type(symbol_stream[cur_offset:], CV_Proc32) or_return
 					symbol_name := string(cstring(raw_data(symbol_stream[cur_offset+size_of(CV_Proc32):])))
 
-					base_addr := base_address_for_section(section_buffer, proc_symbol.section_idx) or_return
+					base_addr := base_address_for_section(section_buffer, proc_symbol.section_idx - 1) or_return
 
 					symbol_addr := base_addr + u64(proc_symbol.offset)
 					interned_symbol := in_get(&trace.intern, &trace.string_block, symbol_name)
@@ -212,7 +212,7 @@ load_pdb :: proc(trace: ^Trace, section_buffer: []u8, pdb_buffer: []u8) -> bool 
 			#partial switch dbg_hdr.type {
 				case .Lines: {
 					lines_hdr := slice_to_type(symbol_stream[cur_offset:], PDB_Line_Header)
-					base_addr := base_address_for_section(section_buffer, lines_hdr.index) or_return
+					base_addr := base_address_for_section(section_buffer, lines_hdr.index - 1) or_return
 					line_addr := base_addr + u64(lines_hdr.offset)
 					cur_offset += size_of(PDB_Line_Header)
 
