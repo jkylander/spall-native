@@ -137,7 +137,7 @@ gen_event_color :: proc(trace: ^Trace, _events: []Event, thread_max: i64, node: 
 	if len(events) == 1 {
 		ev := &events[0]
 		duration := bound_duration(ev, thread_max)
-		idx := name_color_idx(ev.name)
+		idx := name_color_idx(ev.id)
 		node.avg_color = trace.color_choices[idx]
 
 		// if the event was started with no end, *right* as the trace quit, we'll get a duration of 0
@@ -149,7 +149,7 @@ gen_event_color :: proc(trace: ^Trace, _events: []Event, thread_max: i64, node: 
 	color := FVec3{}
 	color_weights := [COLOR_CHOICES]i64{}
 	for ev in &events {
-		idx := name_color_idx(ev.name)
+		idx := name_color_idx(ev.id)
 		duration := bound_duration(&ev, thread_max)
 
 		color_weights[idx] += duration
@@ -507,7 +507,7 @@ init_trace :: proc(trace: ^Trace) {
 			state           = .NoStats,
 			just_started    = false,
 
-			selected_func   = 0,
+			selected_func   = {},
 			selected_event  = empty_event,
 			pressed_event   = empty_event,
 			released_event  = empty_event,
@@ -664,4 +664,16 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 
 		fmt.printf("generate selftimes -- %f ms\n", time.duration_milliseconds(time.tick_since(start_time)))
 	}
+}
+
+ev_name :: proc(trace: ^Trace, ev: ^Event) -> string {
+	if !ev.has_addr {
+		return in_getstr(&trace.string_block, ev.id)
+	}
+	name_idx, ok := am_find(&trace.addr_map, ev.id)
+	if !ok {
+		tmp_buf := make([]byte, 18, context.temp_allocator)
+		return u64_to_hexstr(tmp_buf, ev.id)
+	}
+	return in_getstr(&trace.string_block, name_idx)
 }

@@ -37,7 +37,7 @@ ms_v1_get_next_event :: proc(trace: ^Trace, chunk: []u8, temp_ev: ^TempEvent) ->
 		temp_ev.timestamp = i64(event.time)
 		temp_ev.thread_id = event.tid
 		temp_ev.process_id = event.pid
-		temp_ev.name = in_get(&trace.intern, &trace.string_block, name)
+		temp_ev.id = in_get(&trace.intern, &trace.string_block, name)
 		temp_ev.args = in_get(&trace.intern, &trace.string_block, args)
 
 		p.pos += event_sz + event_tail
@@ -86,7 +86,7 @@ ms_v1_push_event :: proc(trace: ^Trace, process_id, thread_id: u32, event: ^Even
 	if t.max_time > event.timestamp {
 		post_error(trace, 
 			"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
-			process_id, thread_id, in_getstr(&trace.string_block, event.name), event, trace.event_count)
+			process_id, thread_id, in_getstr(&trace.string_block, event.id), event, trace.event_count)
 		return 0, 0, 0, false
 	}
 	t.max_time = event.timestamp + event.duration
@@ -152,7 +152,7 @@ ms_v1_parse :: proc(trace: ^Trace, fd: os.Handle, header_size: i64) -> bool {
 
 		#partial switch temp_ev.type {
 		case .Begin:
-			ev.name = temp_ev.name
+			ev.id = temp_ev.id
 			ev.args = temp_ev.args
 			ev.duration = -1
 			ev.self_time = 0
@@ -262,7 +262,7 @@ ms_v2_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, th
 		args := string(data_start[event_sz+i64(event.name_len):event_sz+i64(event.name_len)+i64(event.args_len)])
 
 		ev := Event{
-			name = in_get(&trace.intern, &trace.string_block, name),
+			id = in_get(&trace.intern, &trace.string_block, name),
 			args = in_get(&trace.intern, &trace.string_block, args),
 			duration = -1,
 			self_time = 0,
@@ -272,7 +272,7 @@ ms_v2_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, th
 		if thread.max_time > ev.timestamp {
 			post_error(trace, 
 				"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
-				0, thread.id, in_getstr(&trace.string_block, ev.name), ev, trace.event_count)
+				0, thread.id, in_getstr(&trace.string_block, ev.id), ev, trace.event_count)
 			return .Failure
 		}
 

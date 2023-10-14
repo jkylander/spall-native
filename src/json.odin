@@ -26,6 +26,13 @@ Sample :: struct {
 	event_idx: i64,
 }
 
+SampleNode :: struct {
+	id: i64,
+	parent: i64,
+	name: u64,
+	is_other: bool,
+}
+
 ProfileState :: struct {
 	pid: u32,
 	tid: u32,
@@ -44,12 +51,6 @@ JSONParser :: struct {
 	skipper_objs: int,
 }
 
-SampleNode :: struct {
-	id: i64,
-	parent: i64,
-	name: u32,
-	is_other: bool,
-}
 
 Node :: struct {
 	id: i64,
@@ -387,8 +388,7 @@ skip_to_start_or_end :: proc(trace: ^Trace, chunk: []u8) -> JSONState {
 process_key_value :: proc(trace: ^Trace, ev: ^TempEvent, key: FieldType, value: string) -> bool #no_bounds_check {
 	#partial switch key {
 	case .Name:
-		str := in_get(&trace.intern, &trace.string_block, value)
-		ev.name = str
+		ev.id = in_get(&trace.intern, &trace.string_block, value)
 	case .Ph:
 		if len(value) != 1 {
 			post_error(trace, "Invalid event type!")
@@ -454,7 +454,7 @@ process_sample :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 	p := &trace.parser
 	new_event: Event = ---
 
-	meta_str := in_getstr(&trace.string_block, ev.name)
+	meta_str := in_getstr(&trace.string_block, ev.id)
 	profile_key := u64(ev.process_id) << 32 | u64(ev.thread_id)
 	if meta_str == "Profile" {
 		blob, err := json.parse_string(in_getstr(&trace.string_block, ev.args), json.DEFAULT_SPECIFICATION, false, context.temp_allocator)
@@ -548,7 +548,7 @@ process_sample :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 
 				// ugh. thanks Google. GC events are weird.
 				mem.zero(&new_event, size_of(Event))
-				new_event.name = cur_sample_node.name
+				new_event.id = cur_sample_node.name
 				new_event.duration = -1
 				new_event.timestamp = profile.time
 
@@ -610,7 +610,7 @@ process_sample :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 					}
 
 					mem.zero(&new_event, size_of(Event))
-					new_event.name = node.name
+					new_event.id = node.name
 					new_event.duration = -1
 					new_event.timestamp = profile.time
 
@@ -631,7 +631,7 @@ process_event :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 		json_push_instant(trace, ev)
 	case .Complete:
 		new_event := Event{
-			name = ev.name,
+			id = ev.id,
 			args = ev.args,
 			duration = ev.duration,
 			self_time = ev.duration,
@@ -640,7 +640,7 @@ process_event :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 		json_push_event(trace, u32(ev.process_id), u32(ev.thread_id), &new_event)
 	case .Begin:
 		new_event := Event{
-			name = ev.name,
+			id = ev.id,
 			args = ev.args,
 			duration = -1,
 			timestamp = ev.timestamp,
@@ -679,7 +679,7 @@ process_event :: proc(trace: ^Trace, jp: ^JSONParser, ev: ^TempEvent) -> bool {
 			return false
 		}
 	case .Metadata:
-		meta_str := in_getstr(&trace.string_block, ev.name)
+		meta_str := in_getstr(&trace.string_block, ev.id)
 		if meta_str == "thread_name" || meta_str == "process_name" {
 			blob, err := json.parse_string(in_getstr(&trace.string_block, ev.args), json.DEFAULT_SPECIFICATION, false, context.temp_allocator)
 			if err != nil {
@@ -939,7 +939,7 @@ json_patch_end :: proc(trace: ^Trace, p_idx, t_idx: int, e_idx: i64, end_time: i
 
 json_push_instant :: proc(trace: ^Trace, event: ^TempEvent) {
 	instant := Instant{
-		name = event.name,
+		id = event.id,
 		timestamp = event.timestamp,
 	}
 
@@ -1085,7 +1085,7 @@ json_process_events :: proc(trace: ^Trace) {
 				depth := depth_arr[idx]
 
 				append(&tm.depths[depth].events, Event{
-					name = event.name,
+					id = event.id,
 					args = event.args,
 					timestamp = event.timestamp,
 					duration = event.duration,

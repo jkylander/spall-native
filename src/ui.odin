@@ -449,9 +449,9 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^U
 
 	duration := bound_duration(&ev, thread.max_time)
 
-	rect_tooltip_name := in_getstr(&trace.string_block, ev.name)
+	rect_tooltip_name := ev_name(trace, &ev)
 	if ev.duration == -1 {
-		rect_tooltip_name = fmt.tprintf("%s (Did Not Finish)", in_getstr(&trace.string_block, ev.name))
+		rect_tooltip_name = fmt.tprintf("%s (Did Not Finish)", ev_name(trace, &ev))
 	}
 
 	rect_tooltip_stats: string
@@ -703,8 +703,8 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 								continue
 							}
 
-							ev_name := in_getstr(&trace.string_block, ev.name)
-							idx := name_color_idx(ev.name)
+							name := ev_name(trace, &ev)
+							idx := name_color_idx(ev.id)
 							e_idx := event_start_idx + de_id
 
 							rect_color := trace.color_choices[idx]
@@ -736,9 +736,9 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 							overhang := (full_flamegraph_rect.x + full_flamegraph_rect.w) - dr.x
 							disp_w := min(dr.w - underhang, dr.w, overhang)
 
-							display_name := ev_name
+							display_name := name
 							if ev.duration == -1 {
-								display_name = fmt.tprintf("%s (Did Not Finish)", ev_name)
+								display_name = fmt.tprintf("%s (Did Not Finish)", name)
 							}
 
 							text_pad := (em / 2)
@@ -1063,7 +1063,7 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 							r_x    = max(r_x, 0)
 							r_w   := end_x - r_x
 
-							idx := name_color_idx(ev.name)
+							idx := name_color_idx(ev.id)
 							e_idx := event_start_idx + de_id
 
 							rect_color := trace.color_choices[idx]
@@ -1377,7 +1377,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 
 		thread := trace.processes[p_idx].threads[t_idx]
 		event := thread.depths[d_idx].events[e_idx]
-		draw_text(rects, in_getstr(&trace.string_block, event.name), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		name := ev_name(trace, &event)
+		draw_text(rects, name, Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 
 		if event.args > 0 {
 			args_str := in_getstr(&trace.string_block, event.args)
@@ -1466,7 +1467,6 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 		last_pos := 0.0
 		stat_loop: for i := 0; i < len(trace.stats.stat_map.entries); i += 1 {
 			entry := trace.stats.stat_map.entries[i]
-			name := entry.key
 			stat := entry.val
 
 			stat_idx += 1
@@ -1490,14 +1490,14 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 			}
 
 			if clicked && pt_in_rect(clicked_pos, click_rect) {
-				if trace.stats.selected_func == name {
-					trace.stats.selected_func = 0
+				if trace.stats.selected_func == entry.key {
+					trace.stats.selected_func = {}
 				} else {
-					trace.stats.selected_func = name
+					trace.stats.selected_func = entry.key
 				}
 			}
 
-			if trace.stats.selected_func == name {
+			if trace.stats.selected_func == entry.key {
 				draw_rect(rects, click_rect, highlight_color)
 			}
 
@@ -1532,16 +1532,17 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 			dr := Rect{cursor, y_before, (full_flamegraph_rect.w - cursor - column_gap) * f64(stat.total_time) / full_time, y_after - y_before}
 			cursor += column_gap / 2
 
-			name_str := in_getstr(&trace.string_block, name)
+			ev := Event{has_addr = entry.key.has_addr, id = entry.key.id}
+			name_str := ev_name(trace, &ev)
 			name_width := measure_text(name_str, .PSize, .MonoFont)
-			tmp_color := trace.color_choices[name_color_idx(name)]
+			tmp_color := trace.color_choices[name_color_idx(entry.key.id)]
 			draw_rect(rects, dr, BVec4{u8(tmp_color.x), u8(tmp_color.y), u8(tmp_color.z), 255})
 			draw_text(rects, name_str, Vec2{cursor, y_before + (em / 3)}, .PSize, .MonoFont, text_color)
 
 			next_line(&y, em)
 		}
 
-		if trace.stats.selected_func > 0 {
+		if trace.stats.selected_func.id > 0 {
 			histogram_height := 18 * em
 			line_gap := (em / 1.5)
 			edge_gap := (em / 2)
@@ -1550,7 +1551,8 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 				info_pane_rect.y - histogram_height - ((em + line_gap) * 2) - edge_gap,
 			}
 
-			name_str := in_getstr(&trace.string_block, trace.stats.selected_func)
+			ev := Event{has_addr = trace.stats.selected_func.has_addr, id = trace.stats.selected_func.id}
+			name_str := ev_name(trace, &ev)
 			stat, ok := sm_get(&trace.stats.stat_map, trace.stats.selected_func)
 			if ok {
 				draw_histogram(rects, trace, name_str, stat, pos, histogram_height)
@@ -2045,10 +2047,11 @@ process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
 					}
 
 					duration := bound_duration(&ev, thread.max_time)
-					name := in_getstr(&trace.string_block, ev.name)
-					s, ok := sm_get(&trace.stats.stat_map, ev.name)
+
+					key := StatKey{ev.has_addr, ev.id}
+					s, ok := sm_get(&trace.stats.stat_map, key)
 					if !ok {
-						s = sm_insert(&trace.stats.stat_map, ev.name, FunctionStats{min_time = max(i64), max_time = min(i64)})
+						s = sm_insert(&trace.stats.stat_map, key, FunctionStats{min_time = max(i64), max_time = min(i64)})
 					}
 
 					s.count += 1
@@ -2089,7 +2092,8 @@ process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
 					}
 
 					duration := bound_duration(&ev, thread.max_time)
-					s, _ := sm_get(&trace.stats.stat_map, ev.name)
+					key := StatKey{ev.has_addr, ev.id}
+					s, _ := sm_get(&trace.stats.stat_map, key)
 
 					idx: u32
 					if (s.max_time - s.min_time <= 0) {

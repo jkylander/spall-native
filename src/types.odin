@@ -164,10 +164,6 @@ StatState :: enum {
 	Pass2,
 	Finished,
 }
-StatEntry :: struct {
-	key: u32,
-	val: FunctionStats,
-}
 SortState :: enum {
 	SelfTime,
 	TotalTime,
@@ -205,16 +201,17 @@ TempEvent :: struct {
 	timestamp: i64,
 	thread_id: u32,
 	process_id: u32,
-	name: u32,
-	args: u32,
+	id: u64,
+	args: u64,
 }
 Instant :: struct #packed {
-	name: u32,
+	id: u64,
 	timestamp: i64,
 }
 Event :: struct #packed {
-	name: u32,
-	args: u32,
+	has_addr: b8,
+	id: u64,
+	args: u64,
 	timestamp: i64,
 	duration: i64,
 	self_time: i64,
@@ -232,7 +229,7 @@ Stats :: struct {
 	cur_offset:      StatOffset,
 	just_started:    bool,
 
-	selected_func:   u32,
+	selected_func:   StatKey,
 	selected_event:  EventID,
 	pressed_event:   EventID,
 	released_event:  EventID,
@@ -306,7 +303,7 @@ Thread :: struct {
 	current_depth: int,
 
 	id: u32,
-	name: u32,
+	name: u64,
 
 	in_stats: bool,
 
@@ -319,7 +316,7 @@ Thread :: struct {
 
 Process :: struct {
 	min_time: i64,
-	name: u32,
+	name: u64,
 
 	id: u32,
 

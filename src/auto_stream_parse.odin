@@ -44,23 +44,17 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		event := (^spall_fmt.MicroBegin_Event)(data_start)
 		raw_time := (event.time_and_type << 8) >> 8
 
-		name, ok := am_find(&trace.addr_map, event.address)
-		if !ok {
-			tmp_buf := [18]byte{}
-			name_str := u64_to_hexstr(tmp_buf[:], event.address)
-			name = in_get(&trace.intern, &trace.string_block, name_str)
-		}
-
 		ev := Event{
-			name = name,
+			has_addr = true,
+			id = event.address,
 			duration = -1,
 			timestamp = i64(raw_time),
 		}
 
 		if thread.max_time > ev.timestamp {
 			post_error(trace, 
-				"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event: %v, event_count: %d]", 
-				0, thread.id, in_getstr(&trace.string_block, ev.name), ev, trace.event_count)
+				"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, addr: 0x%x, event: %v, event_count: %d]", 
+				0, thread.id, ev.id, ev, trace.event_count)
 			return .Failure
 		}
 

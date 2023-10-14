@@ -109,7 +109,7 @@ INMAP_LOAD_FACTOR :: 0.75
 
 // String interning
 INMap :: struct {
-	entries: [dynamic]u32,
+	entries: [dynamic]u64,
 	hashes:  [dynamic]int,
 	resize_threshold: i64,
 	len_minus_one: u32,
@@ -117,7 +117,7 @@ INMap :: struct {
 
 in_init :: proc(allocator := context.allocator) -> INMap {
 	v := INMap{
-		entries = make([dynamic]u32, 0, allocator),
+		entries = make([dynamic]u64, 0, allocator),
 		hashes = make([dynamic]int, 32, allocator), // must be a power of two
 	}
 	for i in 0..<len(v.hashes) {
@@ -136,7 +136,7 @@ in_hash :: proc (key: string) -> u32 {
 	return #force_inline hash.murmur32(k)
 }
 
-in_reinsert :: proc (v: ^INMap, strings: ^[dynamic]u8, entry: u32, v_idx: int) {
+in_reinsert :: proc (v: ^INMap, strings: ^[dynamic]u8, entry: u64, v_idx: int) {
 	hv := u64(in_hash(in_getstr(strings, entry))) & u64(len(v.hashes) - 1)
 	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
 		idx := (u64(hv) + i) & u64(len(v.hashes) - 1)
@@ -161,7 +161,7 @@ in_grow :: proc(v: ^INMap, strings: ^[dynamic]u8) {
 	}
 }
 
-in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> u32 {
+in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> u64 {
 	if i64(len(v.entries)) >= v.resize_threshold {
 		in_grow(v, strings)
 	}
@@ -178,7 +178,7 @@ in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> u32 {
 		if e_idx == -1 {
 			v.hashes[idx] = len(v.entries)
 
-			str_start := u32(len(strings))
+			str_start := u64(len(strings))
 			in_str := str_start
 			key_len := u16(len(key))
 			key_len_bytes := (([^]u8)(&key_len)[:2])
@@ -196,8 +196,8 @@ in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> u32 {
 	push_fatal(SpallError.Bug)
 }
 
-in_getstr :: #force_inline proc(v: ^[dynamic]u8, s: u32) -> string {
-	str_len := u32((^u16)(raw_data(v[s:]))^)
+in_getstr :: #force_inline proc(v: ^[dynamic]u8, s: u64) -> string {
+	str_len := u64((^u16)(raw_data(v[s:]))^)
 	str_start := s+size_of(u16)
 	return string(v[str_start:str_start+str_len])
 }
@@ -267,6 +267,14 @@ km_find :: proc (v: ^KeyMap, key: string) -> (FieldType, bool) {
 
 // Tracking for FunctionStats
 SMMAP_LOAD_FACTOR :: 0.75
+StatKey :: struct #packed {
+	has_addr: b8,
+	id: u64,
+}
+StatEntry :: struct {
+	key: StatKey,
+	val: FunctionStats,
+}
 StatMap :: struct {
 	entries: [dynamic]StatEntry,
 	hashes:  [dynamic]int,
@@ -281,11 +289,13 @@ sm_init :: proc(allocator := context.allocator) -> StatMap {
 	}
 	return v
 }
-sm_hash :: proc(start: u32) -> u32 {
-	return start * 2654435769
+sm_hash :: proc(key: StatKey) -> u32 {
+	k1 := key
+	k := slice.bytes_from_ptr(&k1, size_of(key))
+	return #force_inline hash.murmur32(k)
 }
 sm_reinsert :: proc(v: ^StatMap, entry: StatEntry, v_idx: int) {
-	hv := sm_hash(u32(entry.key)) & u32(len(v.hashes) - 1)
+	hv := sm_hash(entry.key) & u32(len(v.hashes) - 1)
 	for i: u32 = 0; i < u32(len(v.hashes)); i += 1 {
 		idx := (hv + i) & u32(len(v.hashes) - 1)
 
@@ -311,8 +321,8 @@ sm_grow :: proc(v: ^StatMap) {
 	}
 }
 
-sm_get :: proc(v: ^StatMap, key: u32) -> (^FunctionStats, bool) {
-	hv := sm_hash(u32(key)) & u32(len(v.hashes) - 1)
+sm_get :: proc(v: ^StatMap, key: StatKey) -> (^FunctionStats, bool) {
+	hv := sm_hash(key) & u32(len(v.hashes) - 1)
 
 	for i: u32 = 0; i < u32(len(v.hashes)); i += 1 {
 		idx := (hv + i) & u32(len(v.hashes) - 1)
@@ -330,7 +340,7 @@ sm_get :: proc(v: ^StatMap, key: u32) -> (^FunctionStats, bool) {
 
 	push_fatal(SpallError.Bug)
 }
-sm_insert :: proc(v: ^StatMap, key: u32, val: FunctionStats) -> ^FunctionStats {
+sm_insert :: proc(v: ^StatMap, key: StatKey, val: FunctionStats) -> ^FunctionStats {
 	if i64(len(v.entries)) >= v.resize_threshold {
 		sm_grow(v)
 	}
@@ -381,7 +391,7 @@ AM_LOAD_FACTOR :: 0.70
 // u64 -> u32 map
 AMEntry :: struct #packed {
 	key: u64,
-	val: u32,
+	val: u64,
 }
 AMMap :: struct {
 	entries: [dynamic]AMEntry,
@@ -407,10 +417,10 @@ am_free :: proc(v: ^AMMap) {
 
 // this is a fibhash.. Replace me if I'm dumb
 am_hash :: proc(key: u64) -> u64 {
-	return u64(u32(key) * 2654435769)
+	return u64(key * 2654435769)
 }
 
-am_find :: proc (v: ^AMMap, key: u64) -> (u32, bool) {
+am_find :: proc (v: ^AMMap, key: u64) -> (u64, bool) {
 	hashes_len := u64(len(v.hashes))
 	hv := am_hash(key) & (hashes_len - 1)
 
@@ -455,7 +465,7 @@ am_reinsert :: proc(v: ^AMMap, entry: AMEntry, v_idx: i32) {
 	}
 }
 
-am_insert :: proc(v: ^AMMap, key: u64, val: u32) {
+am_insert :: proc(v: ^AMMap, key: u64, val: u64) {
 	if i64(len(v.entries)) >= v.resize_threshold {
 		am_grow(v)
 	}

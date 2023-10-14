@@ -651,7 +651,6 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 	}
 */
 
-	fmt.printf("success?\n")
-	return false
+	return true
 }
 
