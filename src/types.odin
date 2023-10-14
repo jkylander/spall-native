@@ -246,7 +246,7 @@ CU_File_Entry :: struct {
 	file_idx: u32,
 }
 
-COLOR_CHOICES :: 16
+COLOR_CHOICES :: 32
 Trace :: struct {
 	file_name: string,
 	base_name: string,

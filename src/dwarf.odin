@@ -4,6 +4,7 @@ import "core:os"
 import "core:fmt"
 import "core:strings"
 import "core:slice"
+import "core:encoding/varint"
 
 Dw_Form :: enum {
 	addr           = 0x01,
@@ -275,7 +276,8 @@ read_ileb :: proc(buffer: []u8) -> (i64, int, bool) {
 	return 0, 0, false
 }
 
-load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer: []u8) -> bool {
+load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer: []u8, skew_size: u64) -> bool {
+	fmt.printf("address skew: 0x%x\n", skew_size)
 	cu_list := make([dynamic]CU_Unit)
 
 	version : u16 = 0
@@ -450,6 +452,7 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 
 		} else { // For DWARF 4, 3, 2, etc.
 			append(&dir_table, ".")
+			append(&file_table, File_Unit{})
 
 			for {
 				cstr_dir_name := cstring(raw_data(line_buffer[i:]))
@@ -542,6 +545,12 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 					case .end_sequence: {
 						lm_state.end_sequence = true
 						append(&lines, lm_state)
+
+						lm_state = Line_Machine{
+							file_idx = 1,
+							line_num = 1,
+							is_stmt = line_table.default_is_stmt,
+						}
 					} case .set_address: {
 						address := slice_to_type(line_table.op_buffer[i:], u64)
 						lm_state.address = address
@@ -593,6 +602,7 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 				} case .fixed_advance_pc: {
 					advance := slice_to_type(line_table.op_buffer[i:], u16)
 					lm_state.address += u64(advance)
+					lm_state.op_idx = 0
 					i += size_of(advance)
 				} case .set_epilogue_begin: {
 					lm_state.epilogue_begin = true
@@ -636,7 +646,7 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 			if !ok {
 				name = ""
 			}
-			append(&trace.line_info, Line_Info{line.address, line.line_num, name})
+			append(&trace.line_info, Line_Info{line.address + skew_size, line.line_num, name})
 		}
 
 		line_order :: proc(a, b: Line_Info) -> bool {
@@ -644,12 +654,6 @@ load_dwarf :: proc(trace: ^Trace, line_buffer, line_str_buffer, abbrev_buffer, i
 		}
 		slice.sort_by(trace.line_info[:], line_order)
 	}
-
-/*
-	for line in trace.line_info {
-		fmt.printf("0%x -- %s:%d\n", line.address, line.file_name, line.line_num)
-	}
-*/
 
 	return true
 }

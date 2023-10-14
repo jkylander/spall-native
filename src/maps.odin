@@ -388,7 +388,7 @@ sm_free :: proc(v: ^StatMap) {
 
 // Address Map hashtable
 AM_LOAD_FACTOR :: 0.70
-// u64 -> u32 map
+// address -> string idx map
 AMEntry :: struct #packed {
 	key: u64,
 	val: u64,

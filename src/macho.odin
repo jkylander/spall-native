@@ -71,7 +71,7 @@ Mach_Symbol_Entry_64 :: struct #packed {
 	value: u64,
 }
 
-load_macho_symbols :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
+load_macho_symbols :: proc(trace: ^Trace, exec_buffer: []u8, skew_size: ^u64) -> bool {
 	if len(exec_buffer) < size_of(Mach_Header_64) {
 		return false
 	}
@@ -109,7 +109,7 @@ load_macho_symbols :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 	}
 
 	tmp_buffer := make([]u8, 1024*1024, context.temp_allocator)
-	skew_size : u64 = 0
+	_skew_size : u64 = 0
 	symbol_found := false
 	symbol_table_bytes := exec_buffer[symtab_header.symbol_table_offset:]
 	string_table_bytes := exec_buffer[symtab_header.string_table_offset:]
@@ -127,16 +127,17 @@ load_macho_symbols :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 		am_insert(&trace.addr_map, symbol.value, interned_symbol)
 
 		if !symbol_found && symbol_name == "_spall_auto_init" {
-			skew_size = trace.skew_address - u64(symbol.value)
+			_skew_size = trace.skew_address - u64(symbol.value)
 			symbol_found = true
 		}
 	}
 
-	am_skew(&trace.addr_map, skew_size)
+	skew_size^ = _skew_size
+	am_skew(&trace.addr_map, _skew_size)
 	return true
 }
 
-load_macho_debug :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
+load_macho_debug :: proc(trace: ^Trace, exec_buffer: []u8, skew_size: u64) -> bool {
 	if len(exec_buffer) < size_of(Mach_Header_64) {
 		return false
 	}
@@ -197,7 +198,7 @@ load_macho_debug :: proc(trace: ^Trace, exec_buffer: []u8) -> bool {
 	line_str_buffer := []u8{}
 
 	// Start parsing DWARF normally from here
-	load_dwarf(trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer)
+	load_dwarf(trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer, skew_size)
 
 	return true
 }

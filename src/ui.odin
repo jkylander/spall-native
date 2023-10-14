@@ -468,11 +468,21 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^U
 	rect_height := text_height + (1.25 * em)
 	rect_width := name_width + em + stats_width + em
 
+	line_info := ""
+	if ev.has_addr {
+		file, line, ok := get_line_info(trace, ev.id)
+		if ok {
+			line_info = fmt.tprintf("%s:%d", file, line)
+		}
+		info_width := measure_text(line_info, .PSize, .DefaultFont)
+		rect_width = max(rect_width, info_width + em)
+		next_line(&rect_height, em)
+	}
+
 	args := ""
-	args_width : f64 = 0
 	if ev.args > 0 {
 		args = in_getstr(&trace.string_block, ev.args)
-		args_width = measure_text(args, .PSize, .DefaultFont)
+		args_width := measure_text(args, .PSize, .DefaultFont)
 		rect_width = max(rect_width, args_width + em)
 		next_line(&rect_height, em)
 	}
@@ -503,6 +513,10 @@ draw_rect_tooltip :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^U
 	if len(args) > 0 {
 		next_line(&cursor_y, em)
 		draw_text(rects, args, Vec2{tooltip_start_x, cursor_y}, .PSize, .DefaultFont, text_color)
+	}
+	if len(line_info) > 0 {
+		next_line(&cursor_y, em)
+		draw_text(rects, line_info, Vec2{tooltip_start_x, cursor_y}, .PSize, .DefaultFont, text_color)
 	}
 }
 
@@ -704,9 +718,9 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 							}
 
 							name := ev_name(trace, &ev)
-							idx := name_color_idx(ev.id)
 							e_idx := event_start_idx + de_id
 
+							idx := name_color_idx(ev.id)
 							rect_color := trace.color_choices[idx]
 							grey := greyscale(trace.color_choices[idx])
 							if ui_state.multiselecting {
@@ -1376,17 +1390,24 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 		e_idx := int(trace.stats.selected_event.eid)
 
 		thread := trace.processes[p_idx].threads[t_idx]
-		event := thread.depths[d_idx].events[e_idx]
-		name := ev_name(trace, &event)
+		ev := thread.depths[d_idx].events[e_idx]
+		name := ev_name(trace, &ev)
 		draw_text(rects, name, Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 
-		if event.args > 0 {
-			args_str := in_getstr(&trace.string_block, event.args)
+		if ev.args > 0 {
+			args_str := in_getstr(&trace.string_block, ev.args)
 			draw_text(rects, fmt.tprintf(" user data: %s", args_str), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 		}
-		draw_text(rects, fmt.tprintf("start time: %s", time_fmt(disp_time(trace, f64(event.timestamp - trace.total_min_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
-		draw_text(rects, fmt.tprintf("  duration: %s", time_fmt(disp_time(trace, f64(bound_duration(&event, thread.max_time))))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
-		draw_text(rects, fmt.tprintf(" self time: %s", time_fmt(disp_time(trace, f64(event.self_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		if ev.has_addr {
+			draw_text(rects, fmt.tprintf(" address: 0x%x", ev.id), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+			file, line, ok := get_line_info(trace, ev.id)
+			if ok {
+				draw_text(rects, fmt.tprintf(" location: %s:%d", file, line), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+			}
+		}
+		draw_text(rects, fmt.tprintf("start time: %s", time_fmt(disp_time(trace, f64(ev.timestamp - trace.total_min_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf("  duration: %s", time_fmt(disp_time(trace, f64(bound_duration(&ev, thread.max_time))))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+		draw_text(rects, fmt.tprintf(" self time: %s", time_fmt(disp_time(trace, f64(ev.self_time)))), Vec2{stats_pane_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 
 		// If we've got stats cooking already
 	} else if trace.stats.state == .Pass1 || trace.stats.state == .Pass2 {

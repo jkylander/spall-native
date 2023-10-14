@@ -721,7 +721,7 @@ load_elf :: proc(trace: ^Trace, binary_blob: []u8) -> bool {
 	am_skew(&trace.addr_map, skew_size)
 
 	// Start parsing DWARF normally from here
-	load_dwarf(trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer)
+	load_dwarf(trace, line_buffer, line_str_buffer, abbrev_buffer, info_buffer, skew_size)
 
 	return true
 }

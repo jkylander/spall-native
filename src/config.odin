@@ -67,8 +67,6 @@ free_trace_temps :: proc(trace: ^Trace) {
 		}
 		vh_free(&process.thread_map)
 	}
-	in_free(&trace.intern)
-	am_free(&trace.addr_map)
 	vh_free(&trace.process_map)
 }
 
@@ -85,6 +83,8 @@ free_trace :: proc(trace: ^Trace) {
 
 	delete(trace.stats.selected_ranges)
 	sm_free(&trace.stats.stat_map)
+	in_free(&trace.intern)
+	am_free(&trace.addr_map)
 }
 
 bound_duration :: proc(ev: ^Event, max_ts: i64) -> i64 {
@@ -440,7 +440,8 @@ load_executable :: proc(trace: ^Trace, file_name: string) -> bool {
 			return false
 		}
 	} else if magic_chunk == MACH_MAGIC_64 {
-		ok := load_macho_symbols(trace, exec_buffer)
+		skew_size : u64 = 0
+		ok := load_macho_symbols(trace, exec_buffer, &skew_size)
 		if !ok {
 			post_error(trace, "Failed to parse Mach-O!")
 			return false
@@ -459,7 +460,7 @@ load_executable :: proc(trace: ^Trace, file_name: string) -> bool {
 			return false
 		}
 
-		load_macho_debug(trace, debug_buffer)
+		load_macho_debug(trace, debug_buffer, skew_size)
 	} else if bytes.equal(exec_buffer[:2], DOS_MAGIC) {
 		ok := load_pe32(trace, exec_buffer)
 		if !ok {
@@ -676,4 +677,39 @@ ev_name :: proc(trace: ^Trace, ev: ^Event) -> string {
 		return u64_to_hexstr(tmp_buf, ev.id)
 	}
 	return in_getstr(&trace.string_block, name_idx)
+}
+
+get_line_info :: proc(trace: ^Trace, addr: u64) -> (string, u32, bool) {
+	if len(trace.line_info) == 0 {
+		return "", 0, false
+	}
+
+	// make sure address is within line-info bounds
+	if trace.line_info[0].address > addr || trace.line_info[len(trace.line_info)-1].address < addr {
+		return "", 0, false
+	}
+
+	low := 0
+	max := len(trace.line_info)
+	high := max - 1
+
+	for low < high {
+		mid := (low + high) / 2
+
+		line_info := trace.line_info[mid]
+		if addr == line_info.address {
+			return line_info.filename, line_info.line_num, true
+		} else if addr > line_info.address { 
+			low = mid + 1
+		} else { 
+			high = mid - 1
+		}
+	}
+
+	line_info := trace.line_info[low]
+	if addr == line_info.address {
+		return line_info.filename, line_info.line_num, true
+	}
+
+	return "", 0, false
 }
