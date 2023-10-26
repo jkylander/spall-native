@@ -1206,9 +1206,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 	}
 
 	MAX_BLOCK_STACK :: 30
-
-	cur_cu_idx     := 0
-	cur_cu_offset  := 0
+	cu_start_offset  := 0
 
 	// Process the CUs using the abbrev data
 	fmt.printf("DWARF: parsing debug_info\n")
@@ -1233,7 +1231,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			return false
 		}
 		i += size_of(version)
-
 
 		ctx := DWARF_Context{}
 		ctx.bits_64 = false
@@ -1277,9 +1274,10 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			}
 			au := &abbrevs[abbrev_idx]
 
-			au_offset := i - size
-			//fmt.printf("%x | %d | %v\n", au_offset, abbrev_id, au.type)
+			block_offset := i - size
+			//fmt.printf("%x | %d | %v\n", block_offset, abbrev_id, au.type)
 
+			is_function := au.type == .subprogram || au.type == .inlined_subroutine
 			for j := 0; j < len(au.attrs_buf); {
 				attr_name, size, ok := read_uleb(au.attrs_buf[j:])
 				if !ok {
@@ -1320,9 +1318,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				child_level += 1
 			}
 		}
-
-		cur_cu_idx += 1
-		cur_cu_offset = i
+		cu_start_offset = i
 	}
 
 	return true
