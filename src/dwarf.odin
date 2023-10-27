@@ -384,7 +384,7 @@ Line_Table :: struct {
 	line_range:        u8,
 	opcode_base:       u8,
 
-	lines: []Line_Machine,
+	lines: [dynamic]Line_Machine,
 }
 
 CU_Unit :: struct {
@@ -653,6 +653,21 @@ parse_attr_data :: proc(form: Dw_Form, data, abbrev_buffer, str_buffer, str_offs
 	return
 }
 
+cleanup_au_offsets :: proc(au_off_map: ^map[int][dynamic]Abbrev_Unit) {
+	for k, v in au_off_map {
+		delete(v)
+	}
+	delete(au_off_map^)
+}
+
+cleanup_cu_list :: proc(cu_list: ^[dynamic]CU_Unit) {
+	for cu in cu_list {
+		delete(cu.dir_table)
+		delete(cu.file_table)
+		delete(cu.line_table.lines)
+	}
+}
+
 load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 	debug_str_offsets := []u8{}
 	if len(sections.str_offsets) > 0 {
@@ -686,6 +701,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 
 
 	cu_list := make([dynamic]CU_Unit)
+	defer cleanup_cu_list(&cu_list)
 
 	version : u16 = 0
 	fmt.printf("DWARF: parsing debug_line\n")
@@ -728,13 +744,18 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			return false
 		}
 
+		append(&cu_list, CU_Unit{
+			dir_table = make([dynamic]string),
+			file_table = make([dynamic]File_Unit),
+			line_table = Line_Table{
+				lines = make([dynamic]Line_Machine),
+			},
+		})
+		cu := &cu_list[len(cu_list) - 1]
+
 		// this is fun
 		opcode_table_len := line_hdr.opcode_base - 1
 		i += int(opcode_table_len)
-
-		dir_table  := make([dynamic]string)
-		file_table := make([dynamic]File_Unit)
-		lt  := Line_Table{}
 
 		if version == 5 {
 			dir_entry_fmt_count, ok := slice_to_type(sections.line[i:], u8)
@@ -789,7 +810,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 							}
 
 							cstr_dir_name := cstring(raw_data(sections.line_str[str_idx:]))
-							append(&dir_table, string(cstr_dir_name))
+							append(&cu.dir_table, string(cstr_dir_name))
 
 							i += size_of(u32)
 						} case: {
@@ -897,14 +918,14 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 					}
 				}
 
-				append(&file_table, file)
+				append(&cu.file_table, file)
 			}
 
 			full_cu_size := unit_length + size_of(unit_length)
 			hdr_size := i - cu_start
 			rem_size := int(full_cu_size) - hdr_size
 
-			lt = Line_Table{
+			cu.line_table = Line_Table{
 				op_buffer   = sections.line[i:i+rem_size],
 				opcode_base = line_hdr.opcode_base,
 				line_base   = line_hdr.line_base,
@@ -914,8 +935,8 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			i += rem_size
 
 		} else { // For DWARF 4, 3, 2, etc.
-			append(&dir_table, ".")
-			append(&file_table, File_Unit{})
+			append(&cu.dir_table, ".")
+			append(&cu.file_table, File_Unit{})
 
 			for {
 				cstr_dir_name := cstring(raw_data(sections.line[i:]))
@@ -925,7 +946,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 					break
 				}
 
-				append(&dir_table, string(cstr_dir_name))
+				append(&cu.dir_table, string(cstr_dir_name))
 			}
 
 			for {
@@ -954,14 +975,14 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				}
 				i += size3
 
-				append(&file_table, File_Unit{name = string(cstr_file_name), dir_idx = int(dir_idx)})
+				append(&cu.file_table, File_Unit{name = string(cstr_file_name), dir_idx = int(dir_idx)})
 			}
 
 			full_cu_size := unit_length + size_of(unit_length)
 			hdr_size := i - cu_start
 			rem_size := int(full_cu_size) - hdr_size
 
-			lt = Line_Table{
+			cu.line_table = Line_Table{
 				op_buffer   = sections.line[i:i+rem_size],
 				opcode_base = line_hdr.opcode_base,
 				line_base   = line_hdr.line_base,
@@ -970,8 +991,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			}
 			i += rem_size
 		}
-
-		append(&cu_list, CU_Unit{dir_table, file_table, lt})
 	}
 
 	fmt.printf("DWARF: processing line info tables\n")
@@ -983,7 +1002,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 		lm_state.line_num = 1
 		lm_state.is_stmt = line_table.default_is_stmt
 
-		lines := make([dynamic]Line_Machine)
 		for i := 0; i < len(line_table.op_buffer); {
 			op_byte := line_table.op_buffer[i]
 			i += 1
@@ -996,7 +1014,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				lm_state.line_num = u64(int(lm_state.line_num) + line_inc)
 				lm_state.address  = u64(int(lm_state.address) + addr_inc)
 
-				append(&lines, lm_state)
+				append(&line_table.lines, lm_state)
 
 				lm_state.discriminator  = 0
 				lm_state.basic_block    = false
@@ -1016,7 +1034,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				#partial switch real_op {
 					case .end_sequence: {
 						lm_state.end_sequence = true
-						append(&lines, lm_state)
+						append(&line_table.lines, lm_state)
 
 						lm_state = Line_Machine{
 							file_idx = 1,
@@ -1043,7 +1061,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			} else {
 				#partial switch op {
 					case .copy: {
-						append(&lines, lm_state)
+						append(&line_table.lines, lm_state)
 
 						lm_state.discriminator  = 0
 						lm_state.basic_block    = false
@@ -1100,11 +1118,12 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				}
 			}
 		}
-		line_table.lines = lines[:]
 	}
 
+	cu_file_map := make(map[CU_File_Entry]string)
+	defer delete(cu_file_map)
+
 	fmt.printf("DWARF: generating filenames\n")
-	strings.intern_init(&trace.filename_map)
 	b := strings.builder_make(context.temp_allocator)
 	for cu, c_idx in &cu_list {
 		base_dir := cu.dir_table[0]
@@ -1127,14 +1146,14 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				return false
 			}
 
-			trace.cu_file_map[CU_File_Entry{u64(c_idx), u64(f_idx)}] = interned_name
+			cu_file_map[CU_File_Entry{u64(c_idx), u64(f_idx)}] = interned_name
 		}
 	}
 
 	fmt.printf("DWARF: sorting lines\n")
 	for cu, c_idx in &cu_list {
 		for line in &cu.line_table.lines {
-			name, ok := trace.cu_file_map[CU_File_Entry{u64(c_idx), line.file_idx}]
+			name, ok := cu_file_map[CU_File_Entry{u64(c_idx), line.file_idx}]
 			if !ok {
 				name = ""
 			}
@@ -1151,6 +1170,8 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 	cu_start := 0
 
 	au_offset_map := make(map[int][dynamic]Abbrev_Unit)
+	defer cleanup_au_offsets(&au_offset_map)
+
 	au_offset_map[0] = make([dynamic]Abbrev_Unit)
 	abbrevs := &au_offset_map[cu_start]
 

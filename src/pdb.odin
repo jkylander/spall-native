@@ -103,8 +103,6 @@ load_pdb :: proc(trace: ^Trace, section_buffer: []u8, pdb_buffer: []u8) -> bool 
 	skew_size : u64 = 0
 	symbol_found := false
 
-	strings.intern_init(&trace.filename_map)
-
 	mod_offset := size_of(PDB_DBI_Header)
 	last_mod_info := int(dbi_hdr.mod_info_size) + size_of(PDB_DBI_Header)
 	for ; mod_offset < last_mod_info; {

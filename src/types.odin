@@ -264,7 +264,6 @@ Trace :: struct {
 	global_instants: [dynamic]Instant,
 
 	filename_map: strings.Intern,
-	cu_file_map: map[CU_File_Entry]string,
 	line_info: [dynamic]Line_Info,
 
 	total_max_time: i64,

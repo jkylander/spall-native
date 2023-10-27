@@ -80,6 +80,8 @@ free_trace :: proc(trace: ^Trace) {
 	delete(trace.processes)
 	delete(trace.string_block)
 	delete(trace.file_name)
+	strings.intern_destroy(&trace.filename_map)
+	delete(trace.line_info)
 
 	delete(trace.stats.selected_ranges)
 	sm_free(&trace.stats.stat_map)
@@ -489,6 +491,9 @@ init_trace_allocs :: proc(trace: ^Trace, file_name: string) {
 
 	trace.base_name = filepath.base(file_name)
 	trace.file_name = file_name
+
+	trace.line_info = make([dynamic]Line_Info)
+	strings.intern_init(&trace.filename_map)
 
 	// deliberately setting the first elem to 0, to simplify string interactions
 	append_elem(&trace.string_block, 0)
