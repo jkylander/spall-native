@@ -789,8 +789,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 							}
 
 							cstr_dir_name := cstring(raw_data(sections.line_str[str_idx:]))
-							dir_name := strings.clone_from_cstring(cstr_dir_name)
-							append(&dir_table, dir_name)
+							append(&dir_table, string(cstr_dir_name))
 
 							i += size_of(u32)
 						} case: {
@@ -853,7 +852,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 							}
 
 							cstr_file_name := cstring(raw_data(sections.line_str[str_idx:]))
-							file.name = strings.clone_from_cstring(cstr_file_name)
+							file.name = string(cstr_file_name)
 
 							i += size_of(u32)
 						} case .directory_index: {
@@ -926,8 +925,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 					break
 				}
 
-				dir_name := strings.clone_from_cstring(cstr_dir_name)
-				append(&dir_table, dir_name)
+				append(&dir_table, string(cstr_dir_name))
 			}
 
 			for {
@@ -956,8 +954,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 				}
 				i += size3
 
-				file_name := strings.clone_from_cstring(cstr_file_name)
-				append(&file_table, File_Unit{name = file_name, dir_idx = int(dir_idx)})
+				append(&file_table, File_Unit{name = string(cstr_file_name), dir_idx = int(dir_idx)})
 			}
 
 			full_cu_size := unit_length + size_of(unit_length)
@@ -977,7 +974,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 		append(&cu_list, CU_Unit{dir_table, file_table, lt})
 	}
 
-	fmt.printf("processing line info tables\n")
+	fmt.printf("DWARF: processing line info tables\n")
 	for cu, idx in &cu_list {
 		line_table := &cu.line_table
 
@@ -1106,19 +1103,24 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 		line_table.lines = lines[:]
 	}
 
-	fmt.printf("generating filenames\n")
+	fmt.printf("DWARF: generating filenames\n")
 	strings.intern_init(&trace.filename_map)
+	b := strings.builder_make(context.temp_allocator)
 	for cu, c_idx in &cu_list {
 		base_dir := cu.dir_table[0]
 		for file, f_idx in cu.file_table {
 			dir_name := cu.dir_table[file.dir_idx]
 
-			file_name := ""
+			strings.builder_reset(&b)
 			if dir_name[0] != '/' {
-				file_name = fmt.tprintf("%s/%s/%s", base_dir, dir_name, file.name)
-			} else {
-				file_name = fmt.tprintf("%s/%s", dir_name, file.name)
+				strings.write_string(&b, base_dir)
+				strings.write_rune(&b, '/')
 			}
+
+			strings.write_string(&b, dir_name)
+			strings.write_rune(&b, '/')
+			strings.write_string(&b, file.name)
+			file_name := strings.to_string(b)
 
 			interned_name, err := strings.intern_get(&trace.filename_map, file_name)
 			if err != nil {
@@ -1129,7 +1131,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 		}
 	}
 
-	fmt.printf("sorting lines\n")
+	fmt.printf("DWARF: sorting lines\n")
 	for cu, c_idx in &cu_list {
 		for line in &cu.line_table.lines {
 			name, ok := trace.cu_file_map[CU_File_Entry{u64(c_idx), line.file_idx}]
@@ -1231,7 +1233,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 			return false 
 		}
 		i += size_of(unit_length)
-		// if unit_length == 0 { continue }
 
 		version, ok2 := slice_to_type(sections.info[i:], u16)
 		if !ok2 {
@@ -1313,9 +1314,11 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, skew_size: u64) -> bool {
 					panic("%s\n", #location())
 				}
 
+				/*
 				attr_field := Dw_At(attr_name)
 				attr_val := Attr_Entry{form = Dw_Form(attr_form), data = data}
-				//fmt.printf("\t%v (%v)\n", attr_field, attr_val)
+				fmt.printf("\t%v (%v)\n", attr_field, attr_val)
+				*/
 
 				// implicit const lives in the attr buffer, rather than in the .debug_info
 				if attr_code == .implicit_const {
