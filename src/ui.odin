@@ -10,6 +10,8 @@ import "core:os"
 
 import "core:prof/spall"
 
+import SDL "vendor:sdl2"
+
 to_world_x :: proc(cam: Camera, x: f64) -> f64 {
 	return (x - cam.pan.x) / cam.current_scale
 }
@@ -2159,4 +2161,183 @@ draw_errorbox :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UISta
 
 	draw_rect(rects, error_rect, error_color)
 	draw_text(rects, trace.error_message, Vec2{(error_rect.x + (error_rect.w / 2)) - (msg_width / 2), (error_rect.y + (error_rect.h / 2)) - (msg_height / 2)}, .PSize, .DefaultFont, text_color)
+}
+
+draw_trace :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, ui_state: ^UIState, global_pool: ^Pool, dt: f64, window: ^SDL.Window) {
+		rect_tooltip_rect = empty_event
+		rect_tooltip_pos = Vec2{}
+		rendered_rect_tooltip = false
+
+		if !event_cmp(trace.zoom_event, empty_event) {
+			ev := get_event(trace, trace.zoom_event)
+			thread := trace.processes[trace.zoom_event.pid].threads[trace.zoom_event.tid]
+			duration := bound_duration(ev, thread.max_time)
+
+			set_flamegraph_camera(trace, ui_state, ev.timestamp, duration)
+			trace.zoom_event = empty_event
+		}
+
+		// update animation timers
+		greyanim_t = f32((t - multiselect_t) * 5)
+		greymotion = ease_in_out(greyanim_t)
+
+		if start_trace != "" && !ui_state.loading_config {
+			load_config(global_pool, trace, ui_state)
+		}
+
+		if ui_state.loading_config {
+			offset := trace.parser.offset
+			size := trace.total_size
+
+			pad_size : f64 = 4
+			chunk_size : f64 = 10
+
+			load_box := Rect{0, 0, 100, 100}
+			load_box = Rect{
+				(ui_state.width / 2) - (load_box.w / 2) - pad_size,
+				(ui_state.height / 2) - (load_box.h / 2) - pad_size,
+				load_box.w + pad_size,
+				load_box.h + pad_size,
+			}
+
+			draw_rect(rects, load_box, BVec4{30, 30, 30, 255})
+			chunk_count := int(rescale(f64(offset), 0, f64(size), 0, 100))
+
+			chunk := Rect{0, 0, chunk_size, chunk_size}
+			start_x := load_box.x + pad_size
+			start_y := load_box.y + pad_size
+			for i := chunk_count; i >= 0; i -= 1 {
+				cur_x := f64(i %% int(chunk_size))
+				cur_y := f64(i /  int(chunk_size))
+				draw_rect(rects, Rect{
+					start_x + (cur_x * chunk_size),
+					start_y + (cur_y * chunk_size),
+					chunk_size - pad_size,
+					chunk_size - pad_size,
+				}, loading_block_color)
+			}
+
+			ui_state.render_one_more = true
+			return
+		}
+		defer {
+			trace.stats.released_event = empty_event
+		}
+
+		spall_x_pad     := 3 * em
+		header_height   := 3 * em
+		activity_height := 2 * em
+		timebar_height  := 3 * em
+		rect_height     := em + (0.75 * em)
+		top_line_gap    := (em / 1.5)
+
+		topbars_height    := header_height + timebar_height + activity_height
+		minigraph_width   := 15 * em
+		flamegraph_width  := ui_state.width - (spall_x_pad + minigraph_width)
+		flamegraph_height := ui_state.height - topbars_height - ui_state.info_pane_height
+
+		tab_select_height := 2 * em
+		filter_pane_width := ui_state.filters_open ? (15 * em) : 0
+		stats_pane_x := filter_pane_width
+
+		ui_state.side_pad                  = spall_x_pad
+		ui_state.rect_height               = rect_height
+		ui_state.topbars_height            = topbars_height
+		ui_state.top_line_gap              = top_line_gap
+		ui_state.flamegraph_toptext_height = (ui_state.top_line_gap * 2) + (2 * em)
+		ui_state.flamegraph_header_height  = ui_state.flamegraph_toptext_height + em
+
+		ui_state.header_rect             = Rect{0, 0, ui_state.width, header_height}
+		ui_state.global_timebar_rect     = Rect{0, header_height, ui_state.width, timebar_height}
+		ui_state.global_activity_rect    = Rect{spall_x_pad, header_height + timebar_height, flamegraph_width, activity_height}
+		ui_state.local_timebar_rect      = Rect{spall_x_pad, header_height + timebar_height + activity_height, flamegraph_width, timebar_height}
+		ui_state.minimap_rect            = Rect{ui_state.width - minigraph_width, topbars_height, minigraph_width, flamegraph_height}
+
+		ui_state.info_pane_rect          = Rect{0, ui_state.height - ui_state.info_pane_height, ui_state.width, ui_state.info_pane_height}
+		ui_state.tab_rect                = Rect{0, ui_state.info_pane_rect.y, ui_state.width, tab_select_height}
+
+		pane_start_y := ui_state.tab_rect.y + ui_state.tab_rect.h
+
+		info_subpane_height := ui_state.info_pane_height - tab_select_height
+		ui_state.filter_pane_rect        = Rect{0, pane_start_y, filter_pane_width, info_subpane_height}
+		ui_state.stats_pane_rect         = Rect{stats_pane_x, pane_start_y, ui_state.width - stats_pane_x, info_subpane_height}
+
+		ui_state.full_flamegraph_rect    = Rect{spall_x_pad, topbars_height, flamegraph_width, flamegraph_height}
+
+		ui_state.inner_flamegraph_rect    = ui_state.full_flamegraph_rect
+		ui_state.inner_flamegraph_rect.y += ui_state.flamegraph_toptext_height
+		ui_state.inner_flamegraph_rect.h -= ui_state.flamegraph_toptext_height
+
+		ui_state.padded_flamegraph_rect    = ui_state.inner_flamegraph_rect
+		ui_state.padded_flamegraph_rect.y += em
+		ui_state.padded_flamegraph_rect.h -= em
+
+		if ui_state.post_loading {
+			if trace.event_count == 0 { trace.total_min_time = 0; trace.total_max_time = 1000 }
+			ui_state.multiselecting = false
+			reset_flamegraph_camera(trace, ui_state)
+
+			if trace.file_name != "" {
+				name := fmt.ctprintf("%s - spall beta 0.2", trace.base_name)
+				SDL.SetWindowTitle(window, name)
+			}
+			ui_state.post_loading = false
+		}
+
+		// process key/mouse inputs
+		if clicked {
+			did_pan = false
+			trace.stats.pressed_event = empty_event // so no stale events are tracked
+		}
+		start_time, end_time, pan_delta := process_inputs(trace, dt, ui_state)
+
+		clicked_on_rect = false
+		rect_count = 0
+		bucket_count = 0
+
+		draw_flamegraphs(rects, text_rects, trace, start_time, end_time, ui_state)
+
+		draw_minimap(rects, trace, ui_state)
+		draw_topbars(rects, trace, start_time, end_time, ui_state)
+
+		// draw sidelines
+		draw_line(rects, Vec2{ui_state.side_pad, header_height + timebar_height},       Vec2{ui_state.side_pad, ui_state.info_pane_rect.y}, 1, line_color)
+		draw_line(rects, Vec2{ui_state.minimap_rect.x, header_height + timebar_height}, Vec2{ui_state.minimap_rect.x, ui_state.info_pane_rect.y}, 1, line_color)
+
+		process_multiselect(rects, trace, pan_delta, dt, ui_state)
+		process_stats(trace, ui_state)
+
+		draw_stats(rects, trace, ui_state)
+		trace.stats.just_started = false
+		if resort_stats {
+			sort_stats(trace)
+			resort_stats = false
+		}
+
+		draw_header(rects, trace, ui_state)
+
+		// reset the cursor if we're not over a selectable thing
+		if !is_hovering {
+			reset_cursor()
+		}
+
+		if enable_debug {
+			draw_debug(rects, ui_state)
+		}
+
+		// if there's a rectangle tooltip to render, now's the time.
+		if rendered_rect_tooltip {
+			draw_rect_tooltip(rects, trace, ui_state)
+		}
+
+		if trace.error_message != "" {
+			draw_errorbox(rects, trace, ui_state)
+		}
+}
+
+draw_main_menu :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, ui_state: ^UIState, dt: f64, window: ^SDL.Window) {
+	text := "Hello World!"
+	text_width := measure_text(text, .PSize, .DefaultFont)
+	text_x := (ui_state.width / 2) - (text_width / 2)
+	draw_text(rects, text, Vec2{text_x, ui_state.height / 2}, .PSize, .DefaultFont, text_color)
 }

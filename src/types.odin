@@ -19,6 +19,11 @@ Rect :: struct {
 	h: f64,
 }
 
+UIMode :: enum {
+	MainMenu,
+	TraceView,
+}
+
 UIState :: struct {
 	width: f64,
 	height: f64,
@@ -62,6 +67,8 @@ UIState :: struct {
 
 	loading_config: bool,
 	post_loading: bool,
+
+	ui_mode: UIMode,
 }
 
 DrawRect :: struct #packed {
