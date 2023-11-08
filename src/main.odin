@@ -268,6 +268,7 @@ main :: proc() {
 		textboxes = make(map[TextboxKind]TextboxState),
 	}
 	ui_state.textboxes[.ProgramInput] = init_textbox_state()
+	ui_state.textboxes[.CmdArgsInput] = init_textbox_state()
 
 	// If the user passed us a trace, save off the filename now
 	if len(os.args) == 2 {

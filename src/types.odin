@@ -26,7 +26,8 @@ TextboxState :: struct {
 }
 
 TextboxKind :: enum u8 {
-	ProgramInput = 1,
+	ProgramInput,
+	CmdArgsInput,
 }
 
 init_textbox_state :: proc() -> TextboxState {

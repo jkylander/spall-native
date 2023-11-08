@@ -2393,7 +2393,7 @@ draw_textbox :: proc(rects: ^[dynamic]DrawRect, pos: Rect, hint_text: string, st
 	text_y := pos.y + (em / 2)
 
 	cur_str := strings.to_string(state.b)
-	if strings.builder_len(state.b) == 0 && !state.focus {
+	if strings.builder_len(state.b) == 0 {
 		draw_text(rects, hint_text, Vec2{text_x, text_y}, .PSize, .MonoFont, hint_text_color)
 	} else {
 		draw_text(rects, cur_str, Vec2{text_x, text_y}, .PSize, .MonoFont, text_color)
@@ -2430,14 +2430,25 @@ draw_main_menu :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UISt
 
 	form_w := 30 * em
 	form_h := em + p_height
-	box := &ui_state.textboxes[.ProgramInput]
-	draw_textbox(rects, Rect{line_x, line_y, form_w, form_h}, "Path to Program...", box)
+	program_input_box := &ui_state.textboxes[.ProgramInput]
+	draw_textbox(rects, Rect{line_x, line_y, form_w, form_h}, "Path to Program...", program_input_box)
 
 	edge_pad := 0.5 * em
 	button_height := 2 * em
 	button_width  := 2 * em
-	button_rect := Rect{line_x + form_w + edge_pad, line_y, button_height, button_width}
-	if button(rects, button_rect, "\uf15b", "select program", .IconFont, menu_rect.x, menu_rect.w) {
+	program_select_rect := Rect{line_x + form_w + edge_pad, next_line(&line_y, form_h), button_height, button_width}
+	if button(rects, program_select_rect, "\uf15b", "select program", .IconFont, menu_rect.x, menu_rect.w) {
 		fmt.printf("selecting executable!\n")
+	}
+
+	cmdargs_input_box := &ui_state.textboxes[.CmdArgsInput]
+	draw_textbox(rects, Rect{line_x, next_line(&line_y, form_h), form_w, form_h}, "Command line arguments...", cmdargs_input_box)
+
+	sample_button_text := "Start"
+	sample_button_width := measure_text(sample_button_text, .PSize, .DefaultFont) + em
+	full_form_w := form_w + edge_pad + button_width
+	start_sample_rect := Rect{line_x + (full_form_w / 2) - (sample_button_width / 2), line_y, sample_button_width, p_height + (em / 2)}
+	if button(rects, start_sample_rect, sample_button_text, "", .DefaultFont, menu_rect.x, menu_rect.w) {
+		fmt.printf("Starting sampling\n")
 	}
 }
