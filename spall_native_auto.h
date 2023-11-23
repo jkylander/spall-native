@@ -127,7 +127,6 @@ extern "C" {
 #endif
 
 #define SPALL_FN static SPALL_NOINSTRUMENT
-#define SPALL_MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #if SPALL_IS_X64
 #include <x86intrin.h>
@@ -160,65 +159,19 @@ typedef struct SpallHeader {
 
 enum {
     SpallEventType_Invalid    = 0,
-    SpallEventType_MicroBegin_1 = 1,
-    SpallEventType_MicroBegin_2 = 2,
-    SpallEventType_MicroBegin_4 = 3,
-    SpallEventType_MicroBegin_8 = 4,
-    SpallEventType_MicroEnd_1   = 5,
-    SpallEventType_MicroEnd_2   = 6,
-    SpallEventType_MicroEnd_4   = 7,
-    SpallEventType_MicroEnd_8   = 8,
 };
 
-typedef struct SpallMicroBeginEvent_1 {
-    uint8_t  type;
-    uint8_t  dt;
-    uint64_t address;
-    uint64_t caller;
-} SpallMicroBeginEvent_1;
-
-typedef struct SpallMicroBeginEvent_2 {
-    uint8_t  type;
-    uint16_t dt;
-    uint64_t address;
-    uint64_t caller;
-} SpallMicroBeginEvent_2;
-
-typedef struct SpallMicroBeginEvent_4 {
-    uint8_t  type;
-    uint32_t dt;
-    uint64_t address;
-    uint64_t caller;
-} SpallMicroBeginEvent_4;
-
 typedef struct SpallMicroBeginEvent_8 {
-    uint8_t  type;
-    uint64_t dt;
-    uint64_t address;
+    uint8_t type;
+    uint64_t ts;
+    uint64_t addr;
     uint64_t caller;
 } SpallMicroBeginEvent_8;
 
-
-typedef struct SpallMicroEndEvent_1 {
-    uint8_t  type;
-    uint8_t dt;
-} SpallMicroEndEvent_1;
-
-typedef struct SpallMicroEndEvent_2 {
-    uint8_t  type;
-    uint16_t dt;
-} SpallMicroEndEvent_2;
-
-typedef struct SpallMicroEndEvent_4 {
-    uint8_t  type;
-    uint32_t dt;
-} SpallMicroEndEvent_4;
-
 typedef struct SpallMicroEndEvent_8 {
-    uint8_t  type;
-    uint64_t dt;
+    uint8_t type;
+    uint64_t ts;
 } SpallMicroEndEvent_8;
-
 
 typedef struct SpallBufferHeader {
     uint32_t size;
@@ -228,14 +181,23 @@ typedef struct SpallBufferHeader {
 
 #pragma pack(pop)
 
+uint8_t spall_squash_1[] = {1, 1, 2, 4, 4, 8, 8, 8, 8};
+uint8_t spall_squash_2[] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 
-SPALL_FN SPALL_FORCEINLINE uint64_t spall_dt_to_idx(uint64_t dt) {
-    uint64_t filled_bytes = 8 - (__builtin_clzll(dt) >> 3);
-    if (filled_bytes <= 1) {
-        return 0;
-    }
-    uint64_t idx = (64 - __builtin_clzll(filled_bytes - 1));
-    return idx;
+SPALL_FN SPALL_FORCEINLINE uint64_t spall_branchless_abs(uint64_t v) {
+    uint64_t mask = v >> 63;
+    return (v + mask) ^ mask;
+}
+
+SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_to_size(uint64_t dt) {
+    if (dt == 0) { return 1; }
+    uint64_t set_bits = 64 - __builtin_clzll(dt);
+    uint64_t set_bytes = (set_bits + 7) >> 3;
+    return spall_squash_1[set_bytes];
+}
+
+SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_min_size(uint64_t dt) {
+    return spall_delta_to_size(spall_branchless_abs(dt) << 1);
 }
 
 typedef struct SpallProfile {
@@ -261,8 +223,12 @@ typedef struct SpallBuffer {
 
     size_t   head;
     uint32_t thread_id;
+
     uint64_t previous_ts;
     uint64_t first_ts;
+
+    uint64_t previous_addr;
+    uint64_t previous_caller;
 } SpallBuffer;
 
 
@@ -570,6 +536,8 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_flush(void) {
     spall_buffer->head = sizeof(SpallBufferHeader);
     spall_buffer->first_ts = 0;
     spall_buffer->previous_ts = 0;
+    spall_buffer->previous_addr = 0;
+    spall_buffer->previous_caller = 0;
     return true;
 }
 
@@ -588,46 +556,32 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_begin(uint64_t addr, uint64_t
         spall_buffer->previous_ts = now;
     }
 
-    void *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
+    uint8_t *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
+
     uint64_t dt = now - spall_buffer->previous_ts;
-    uint64_t ev_type_idx = spall_dt_to_idx(dt);
-    switch (ev_type_idx) {
-    case 0: {
-        SpallMicroBeginEvent_1 *ev = (SpallMicroBeginEvent_1 *)ev_buffer;
-        ev->type = SpallEventType_MicroBegin_1;
-        ev->dt = dt;
-        ev->address = addr;
-        ev->caller = caller;
-        ev_size = sizeof(SpallMicroBeginEvent_1);
-    } break;
-    case 1: {
-        SpallMicroBeginEvent_2 *ev = (SpallMicroBeginEvent_2 *)ev_buffer;
-        ev->type = SpallEventType_MicroBegin_2;
-        ev->dt = dt;
-        ev->address = addr;
-        ev->caller = caller;
-        ev_size = sizeof(SpallMicroBeginEvent_2);
-    } break;
-    case 2: {
-        SpallMicroBeginEvent_4 *ev = (SpallMicroBeginEvent_4 *)ev_buffer;
-        ev->type = SpallEventType_MicroBegin_4;
-        ev->dt = dt;
-        ev->address = addr;
-        ev->caller = caller;
-        ev_size = sizeof(SpallMicroBeginEvent_4);
-    } break;
-    case 3: {
-        SpallMicroBeginEvent_8 *ev = (SpallMicroBeginEvent_8 *)ev_buffer;
-        ev->type = SpallEventType_MicroBegin_8;
-        ev->dt = dt;
-        ev->address = addr;
-        ev->caller = caller;
-        ev_size = sizeof(SpallMicroBeginEvent_8);
-    } break;
-    }
+
+    uint64_t d_addr   = addr - spall_buffer->previous_addr;
+    uint64_t d_caller = caller - spall_buffer->previous_caller;
+
+    uint64_t dt_size     = spall_delta_to_size(dt);
+    uint64_t addr_size   = spall_delta_min_size(d_addr);
+    uint64_t caller_size = spall_delta_min_size(d_caller);
+    //printf("%d | addr: %llx, delta: %lld, size: %lld\n", spall_buffer->thread_id, addr, d_addr, addr_size);
+
+    // [begin event tag | size of ts | size of addr | size of caller]
+    uint8_t type_byte = (1 << 6) | (spall_squash_2[dt_size] << 4) | (spall_squash_2[addr_size] << 2) | spall_squash_2[caller_size];
+
+    int i = 0;
+    *(ev_buffer + i) = type_byte; i += 1;
+    memcpy(ev_buffer + i, &dt, dt_size);           i += dt_size;
+    memcpy(ev_buffer + i, &d_addr, addr_size);     i += addr_size;
+    memcpy(ev_buffer + i, &d_caller, caller_size); i += caller_size;
 
     spall_buffer->previous_ts = now;
-    spall_buffer->head += ev_size;
+    spall_buffer->previous_addr = addr;
+    spall_buffer->previous_caller = caller;
+    spall_buffer->head += i;
+
     return true;
 }
 
@@ -646,39 +600,20 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
     }
 
     size_t data_start = spall_buffer->write_half ? spall_buffer->sub_length : 0;
+    uint8_t *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
 
-    void *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
     uint64_t dt = now - spall_buffer->previous_ts;
-    uint64_t ev_type_idx = spall_dt_to_idx(dt);
-    switch (ev_type_idx) {
-        case 0: {
-                    SpallMicroEndEvent_1 *ev = (SpallMicroEndEvent_1 *)ev_buffer;
-                    ev->type = SpallEventType_MicroEnd_1;
-                    ev->dt = dt;
-                    ev_size = sizeof(SpallMicroEndEvent_1);
-                } break;
-        case 1: {
-                    SpallMicroEndEvent_2 *ev = (SpallMicroEndEvent_2 *)ev_buffer;
-                    ev->type = SpallEventType_MicroEnd_2;
-                    ev->dt = dt;
-                    ev_size = sizeof(SpallMicroEndEvent_2);
-                } break;
-        case 2: {
-                    SpallMicroEndEvent_4 *ev = (SpallMicroEndEvent_4 *)ev_buffer;
-                    ev->type = SpallEventType_MicroEnd_4;
-                    ev->dt = dt;
-                    ev_size = sizeof(SpallMicroEndEvent_4);
-                } break;
-        case 3: {
-                    SpallMicroEndEvent_8 *ev = (SpallMicroEndEvent_8 *)ev_buffer;
-                    ev->type = SpallEventType_MicroEnd_8;
-                    ev->dt = dt;
-                    ev_size = sizeof(SpallMicroEndEvent_8);
-                } break;
-    }
+    uint64_t dt_size = spall_delta_to_size(dt);
+
+    // [end event tag | size of ts]
+    uint8_t type_byte = (2 << 6) | (spall_squash_2[dt_size] << 4);
+
+    int i = 0;
+    *(ev_buffer + i) = type_byte; i += 1;
+    memcpy(ev_buffer + i, &dt, dt_size); i += dt_size;
 
     spall_buffer->previous_ts = now;
-    spall_buffer->head += ev_size;
+    spall_buffer->head += i;
     return true;
 }
 
@@ -735,6 +670,7 @@ SPALL_FN void *spall_canonical_addr(void* fn) {
 
     return ret;
 }
+
 
 bool spall_auto_init(char *filename) {
     if (!filename) return false;

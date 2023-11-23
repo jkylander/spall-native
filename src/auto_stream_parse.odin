@@ -73,26 +73,23 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 
             current_time^ = current_time^ + i64(dt)
             current_addr^ = current_addr^ + u64(d_addr)
-            ev := Event{
-                has_addr = true,
-                id = current_addr^,
-                duration = -1,
-                timestamp = current_time^,
-            }
 
-            if thread.max_time > ev.timestamp {
+            id := current_addr^
+            timestamp := current_time^
+
+            if thread.max_time > timestamp {
                 post_error(trace, 
-                    "Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, addr: 0x%x, event: %v, event_count: %d]", 
-                    0, thread.id, ev.id, ev, trace.event_count)
+                    "Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, addr: 0x%x, event_count: %d]", 
+                    0, thread.id, id, trace.event_count)
                 return .Failure
             }
 
-            process.min_time = min(process.min_time, ev.timestamp)
-            thread.min_time  = min(thread.min_time, ev.timestamp)
-            thread.max_time  = ev.timestamp
+            process.min_time = min(process.min_time, timestamp)
+            thread.min_time  = min(thread.min_time, timestamp)
+            thread.max_time  = timestamp
 
-            trace.total_min_time = min(trace.total_min_time, ev.timestamp)
-            trace.total_max_time = max(trace.total_max_time, ev.timestamp)
+            trace.total_min_time = min(trace.total_min_time, timestamp)
+            trace.total_max_time = max(trace.total_max_time, timestamp)
 
             if thread.current_depth >= len(thread.depths) {
                 depth := Depth{
@@ -103,7 +100,13 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 
             depth := &thread.depths[thread.current_depth]
             thread.current_depth += 1
-            append_event(&depth.events, &ev)
+            ev := add_event(&depth.events)
+            ev^ = Event{
+                has_addr = true,
+                id = id,
+                duration = -1,
+                timestamp = timestamp
+            }
 
             ev_idx := len(depth.events)-1
             stack_push_back(&thread.bande_q, ev_idx)

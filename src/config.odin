@@ -117,6 +117,20 @@ find_idx :: proc(trace: ^Trace, events: []Event, val: i64) -> int {
 	return low
 }
 
+add_event :: proc(events: ^[dynamic]Event, loc := #caller_location) -> ^Event {
+	if cap(events) < len(events)+1 {
+		cap := 3 * cap(events) + max(8, 1)
+		_ = reserve(events, cap, loc)
+	}
+
+	a := (^runtime.Raw_Dynamic_Array)(events)
+	data := ([^]Event)(a.data)
+	ev := &data[a.len]
+	a.len += 1
+
+	return ev
+}
+
 append_event :: proc(events: ^[dynamic]Event, ev: ^Event, loc := #caller_location) {
 	if cap(events) < len(events)+1 {
 		cap := 2 * cap(events) + max(8, 1)
