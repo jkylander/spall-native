@@ -14,6 +14,7 @@ static void bar(void) {
     spall_auto_buffer_begin("jam", 3, "", 0);
     spall_auto_buffer_end();
 }
+static void woz(void) {}
 static void foo(void) {
 	bar();
 }
@@ -71,6 +72,10 @@ int main() {
     spall_auto_buffer_flush();
 
 	wub();
+
+    for (int i = 0; i < 1000000; i++) {
+        woz();
+    }
 
 	pthread_join(thread_1, NULL);
 	pthread_join(thread_2, NULL);

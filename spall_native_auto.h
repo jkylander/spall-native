@@ -71,8 +71,9 @@ void spall_auto_set_thread_instrumenting(bool on);
     #define _Thread_local thread_local
 #endif
 
-#define SPALL_DEFAULT_BUFFER_SIZE (128 * 1024 * 1024)
+#define SPALL_DEFAULT_BUFFER_SIZE (32 * 1024 * 1024)
 #define SPALL_MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define SPALL_MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #ifdef __cplusplus
 }
@@ -167,7 +168,6 @@ typedef struct SpallHeader {
 enum {
     SpallAutoEventType_Invalid = 0,
     SpallAutoEventType_Begin   = 1,
-    SpallAutoEventType_End     = 2,
 };
 
 typedef struct SpallMicroBeginEventMax {
@@ -194,11 +194,6 @@ typedef struct SpallAutoBeginEventMax {
     char args_bytes[255];
 } SpallAutoBeginEventMax;
 
-typedef struct SpallAutoEndEvent {
-    uint8_t type;
-    uint64_t when;
-} SpallAutoEndEvent;
-
 typedef struct SpallBufferHeader {
     uint32_t size;
     uint32_t tid;
@@ -211,7 +206,7 @@ uint8_t spall_squash_1[] = {1, 1, 2, 4, 4, 8, 8, 8, 8};
 uint8_t spall_squash_2[] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 
 SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_to_size(uint64_t dt) {
-    if (dt == 0) { return 1; }
+    dt = SPALL_MAX(1, dt);
     uint64_t set_bits = 64 - __builtin_clzll(dt);
     uint64_t set_bytes = (set_bits + 7) >> 3;
     return spall_squash_1[set_bytes];
@@ -629,7 +624,7 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
 
     int i = 0;
     *(ev_buffer + i) = type_byte; i += 1;
-    memcpy(ev_buffer + i, &dt,       8);     i += dt_size;
+    memcpy(ev_buffer + i, &dt,       8); i += dt_size;
 
     spall_buffer->previous_ts = now;
     spall_buffer->head += i;
@@ -644,43 +639,37 @@ SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_begin(const char *na
     }
     uint8_t trunc_name_len = (uint8_t)SPALL_MIN(name_len, 255);
     uint8_t trunc_args_len = (uint8_t)SPALL_MIN(args_len, 255);
-    size_t ev_size = sizeof(SpallAutoBeginEvent) + trunc_name_len + trunc_args_len;
 
     size_t data_start = spall_buffer->write_half ? spall_buffer->sub_length : 0;
     uint8_t *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
-    SpallAutoBeginEventMax *ev = (SpallAutoBeginEventMax *)ev_buffer;
 
-    ev->event.type = (2 << 6) | SpallAutoEventType_Begin;
-    ev->event.name_length = trunc_name_len;
-    ev->event.args_length = trunc_args_len;
-    memcpy(ev->name_bytes                 , name, trunc_name_len);
-    memcpy(ev->name_bytes + trunc_name_len, args, trunc_args_len);
-    spall_buffer->head += ev_size;
+    uint64_t now = spall_get_clock();
+    if (spall_buffer->first_ts == 0) {
+        spall_buffer->first_ts = now;
+        spall_buffer->previous_ts = now;
+    }
+    uint64_t dt = now - spall_buffer->previous_ts;
+    uint64_t dt_size = spall_delta_to_size(dt);
 
-    // defer timestamp as late as possible on begin
-    ev->event.when = spall_get_clock();
+    // [extended tag | begin type | delta size]
+    uint8_t type_byte = (2 << 6) | (SpallAutoEventType_Begin << 4) | (spall_squash_2[dt_size] << 2);
+
+    int i = 0;
+    *(ev_buffer + i) = type_byte;              i += 1;
+    memcpy(ev_buffer + i, &dt, 8);             i += dt_size;
+    memcpy(ev_buffer + i, &trunc_name_len, 1); i += 1;
+    memcpy(ev_buffer + i, &trunc_args_len, 1); i += 1;
+    memcpy(ev_buffer + i, name, trunc_name_len); i += trunc_name_len;
+    memcpy(ev_buffer + i, args, trunc_args_len); i += trunc_args_len;
+
+    spall_buffer->previous_ts = now;
+    spall_buffer->head += i;
+
     return true;
 }
 
 SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_end(void) {
-    // defer timestamp as early as possible on end
-    uint64_t now = spall_get_clock();
-
-    size_t ev_size = sizeof(SpallAutoEndEvent);
-    if ((spall_buffer->head + ev_size) > spall_buffer->sub_length) {
-        if (!spall_auto_buffer_flush()) {
-            return false;
-        }
-    }
-
-    size_t data_start = spall_buffer->write_half ? spall_buffer->sub_length : 0;
-    uint8_t *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
-    SpallAutoEndEvent *ev = (SpallAutoEndEvent *)ev_buffer;
-
-    ev->type = (2 << 6) | SpallAutoEventType_End;
-    ev->when = now;
-    spall_buffer->head += ev_size;
-    return true;
+    return spall_buffer_micro_end();
 }
 
 SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool (spall_auto_thread_init)(uint32_t thread_id, size_t buffer_size) {

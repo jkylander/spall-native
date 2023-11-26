@@ -139,25 +139,32 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
             p.pos += event_sz
             return .EventRead
         case 2: // Other Events
-            type := spall_fmt.Auto_Event_Type(0b00_11_11_11 & type_byte)
+            type := spall_fmt.Auto_Event_Type((0b00_11_00_00 & type_byte) >> 4)
             #partial switch type {
             case .Begin:
-                event_sz := i64(size_of(spall_fmt.Auto_Begin_Event))
-                if chunk_pos(p) + event_sz > i64(len(chunk)) {
+                dt_size := i64(1 << ((0b00_00_11_00 & type_byte) >> 2))
+                min_event_sz := 1 + dt_size + 2 // type byte + dt size + arg length bytes
+                if chunk_pos(p) + min_event_sz > i64(len(chunk)) {
                     return .PartialRead
                 }
-                event := (^spall_fmt.Auto_Begin_Event)(raw_data(data_start))
+                
+                i : i64 = 1
+                dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size)); i += dt_size
+                name_len := pull_uval(chunk[chunk_pos(p)+i:], 1); i += 1
+                args_len := pull_uval(chunk[chunk_pos(p)+i:], 1); i += 1
 
-                event_tail := i64(event.name_len) + i64(event.args_len)
-                if (chunk_pos(p) + event_sz + event_tail) > i64(len(chunk)) {
+                event_tail := i64(name_len) + i64(args_len)
+                if (chunk_pos(p) + min_event_sz + event_tail) > i64(len(chunk)) {
                     return .PartialRead
                 }
 
-                name_str := string(data_start[event_sz:event_sz+i64(event.name_len)])
-                args_str := string(data_start[event_sz+i64(event.name_len):event_sz+i64(event.name_len)+i64(event.args_len)])
+                name_str := string(data_start[i:i+i64(name_len)]); i += i64(name_len)
+                args_str := string(data_start[i:i+i64(args_len)]); i += i64(args_len)
                 id := in_get(&trace.intern, &trace.string_block, name_str)
                 args := in_get(&trace.intern, &trace.string_block, args_str)
-                timestamp := i64(event.time)
+
+                current_time^ = current_time^ + i64(dt)
+                timestamp := current_time^
 
                 if thread.max_time > timestamp {
                     post_error(trace, 
@@ -194,36 +201,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
                 stack_push_back(&thread.bande_q, ev_idx)
                 trace.event_count += 1
 
-                p.pos += event_sz + event_tail
-                return .EventRead
-            case .End:
-                event_sz := i64(size_of(spall_fmt.Auto_End_Event))
-                if chunk_pos(p) + event_sz > i64(len(chunk)) {
-                    return .PartialRead
-                }
-                event := (^spall_fmt.Auto_End_Event)(raw_data(data_start))
-
-                if thread.bande_q.len > 0 {
-                    jev_idx := stack_pop_back(&thread.bande_q)
-                    thread.current_depth -= 1
-
-                    depth := &thread.depths[thread.current_depth]
-                    jev := &depth.events[jev_idx]
-                    jev.duration = i64(event.time) - jev.timestamp
-                    jev.self_time = jev.duration - jev.self_time
-                    thread.max_time = max(thread.max_time, jev.timestamp + jev.duration)
-                    trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
-
-                    if thread.bande_q.len > 0 {
-                        parent_depth := &thread.depths[thread.current_depth - 1]
-                        parent_ev_idx := stack_peek_back(&thread.bande_q)
-
-                        pev := &parent_depth.events[parent_ev_idx]
-                        pev.self_time += jev.duration
-                    }
-                }
-                
-                p.pos += event_sz
+                p.pos += i
                 return .EventRead
             }
         case:

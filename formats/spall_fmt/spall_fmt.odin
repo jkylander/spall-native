@@ -50,11 +50,6 @@ Auto_Begin_Event :: struct #packed {
 	args_len: u8,
 }
 
-Auto_End_Event :: struct #packed {
-	type:     Auto_Event_Type,
-	time:     u64,
-}
-
 Begin_Event_V1 :: struct #packed {
 	type:     Manual_Event_Type,
 	category: u8,
