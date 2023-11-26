@@ -210,30 +210,11 @@ typedef struct SpallBufferHeader {
 uint8_t spall_squash_1[] = {1, 1, 2, 4, 4, 8, 8, 8, 8};
 uint8_t spall_squash_2[] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 
-SPALL_FN SPALL_FORCEINLINE uint64_t spall_branchless_abs(uint64_t v) {
-    uint64_t mask = v >> 63;
-    return (v + mask) ^ mask;
-}
-
 SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_to_size(uint64_t dt) {
     if (dt == 0) { return 1; }
     uint64_t set_bits = 64 - __builtin_clzll(dt);
     uint64_t set_bytes = (set_bits + 7) >> 3;
     return spall_squash_1[set_bytes];
-}
-
-SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_min_size(uint64_t dt) {
-    return spall_delta_to_size(spall_branchless_abs(dt) << 1);
-}
-
-SPALL_FN int spall_write_val(uint8_t *buf, uint64_t val, uint64_t size) {
-    switch (size) {
-    case 1: *(uint8_t  *)buf = (uint8_t)val;
-    case 2: *(uint16_t *)buf = (uint16_t)val;
-    case 4: *(uint32_t *)buf = (uint32_t)val;
-    case 8: *(uint64_t *)buf = (uint64_t)val;
-    }
-    return size;
 }
 
 typedef struct SpallProfile {
@@ -611,9 +592,9 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_begin(uint64_t addr, uint64_t
 
     int i = 0;
     *(ev_buffer + i) = type_byte; i += 1;
-    i += spall_write_val(ev_buffer + i, dt,       dt_size);
-    i += spall_write_val(ev_buffer + i, d_addr,   addr_size);
-    i += spall_write_val(ev_buffer + i, d_caller, caller_size);
+    memcpy(ev_buffer + i, &dt,       8);     i += dt_size;
+    memcpy(ev_buffer + i, &d_addr,   8);   i += addr_size;
+    memcpy(ev_buffer + i, &d_caller, 8); i += caller_size;
 
     spall_buffer->previous_ts = now;
     spall_buffer->previous_addr = addr;
@@ -648,7 +629,7 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
 
     int i = 0;
     *(ev_buffer + i) = type_byte; i += 1;
-    i += spall_write_val(ev_buffer + i, dt, dt_size);
+    memcpy(ev_buffer + i, &dt,       8);     i += dt_size;
 
     spall_buffer->previous_ts = now;
     spall_buffer->head += i;
