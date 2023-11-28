@@ -265,7 +265,7 @@ main :: proc() {
 	}
 	clicked_t = time.tick_now()
 	ui_state := UIState{
-		ui_mode = .MainMenu,
+		ui_mode = .TraceView,
 		post_loading = true,
 		textboxes = make(map[TextboxKind]TextboxState),
 	}
