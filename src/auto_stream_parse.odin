@@ -81,13 +81,6 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
             trace.total_min_time = min(trace.total_min_time, timestamp)
             trace.total_max_time = max(trace.total_max_time, timestamp)
 
-            if thread.current_depth >= len(thread.depths) {
-                depth := Depth{
-                    events = make([dynamic]Event),
-                }
-                non_zero_append(&thread.depths, depth)
-            }
-
             depth := &thread.depths[thread.current_depth]
             thread.current_depth += 1
             ev := add_event(&depth.events)
@@ -183,13 +176,6 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
                 trace.total_min_time = min(trace.total_min_time, timestamp)
                 trace.total_max_time = max(trace.total_max_time, timestamp)
 
-                if thread.current_depth >= len(thread.depths) {
-                    depth := Depth{
-                        events = make([dynamic]Event),
-                    }
-                    non_zero_append(&thread.depths, depth)
-                }
-
                 depth := &thread.depths[thread.current_depth]
                 thread.current_depth += 1
                 ev := add_event(&depth.events)
@@ -261,6 +247,12 @@ as_parse :: proc(trace: ^Trace, fd: os.Handle, header_size: i64) -> bool {
 
 		thread_idx := setup_tid(trace, proc_idx, buffer_header.tid)
 		thread := &process.threads[thread_idx]
+		for u32(len(thread.depths)) <= buffer_header.max_depth {
+			depth := Depth{
+                events = make([dynamic]Event),
+			}
+			non_zero_append(&thread.depths, depth)
+		}
 
 		buffer_end := p.pos + i64(buffer_header.size)
 

@@ -38,9 +38,10 @@ Auto_Event_Type :: enum u8 {
 }
 
 Buffer_Header :: struct #packed {
-	size: u32,
-	tid: u32,
-    first_ts: u64,
+	size:      u32,
+	tid:       u32,
+    first_ts:  u64,
+    max_depth: u32,
 }
 
 Auto_Begin_Event :: struct #packed {

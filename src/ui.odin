@@ -704,6 +704,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 			cur_depth_off := 0
 			for depth, d_idx in &thread.depths {
 				tree := depth.tree
+                if len(depth.tree) == 0 { continue }
 
 				found_rid := -1
 				range_loop: for range, r_idx in trace.stats.selected_ranges {
@@ -1092,6 +1093,8 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 						break
 					}
 				}
+
+                if len(depth.tree) == 0 { continue }
 
 				y := tree_y + (mini_rect_height * f64(d_idx))
 

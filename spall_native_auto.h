@@ -190,18 +190,17 @@ typedef struct SpallBufferHeader {
     uint32_t size;
     uint32_t tid;
     uint64_t first_ts;
+    uint32_t max_depth;
 } SpallBufferHeader;
 
 #pragma pack(pop)
 
-uint8_t spall_squash_1[] = {1, 1, 2, 4, 4, 8, 8, 8, 8};
-uint8_t spall_squash_2[] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
-
-SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_to_size(uint64_t dt) {
-    dt = SPALL_MAX(1, dt);
-    uint64_t set_bits = 64 - __builtin_clzll(dt);
-    uint64_t set_bytes = (set_bits + 7) >> 3;
-    return spall_squash_1[set_bytes];
+SPALL_FN SPALL_FORCEINLINE uint64_t spall_delta_to_bits(uint64_t dt) {
+	uint32_t count = 0;
+	count += (dt >= 0x100);
+	count += (dt >= 0x10000);
+	count += (dt >= 0x100000000);
+	return count;
 }
 
 typedef struct SpallProfile {
@@ -233,6 +232,9 @@ typedef struct SpallBuffer {
 
     uint64_t previous_addr;
     uint64_t previous_caller;
+
+    uint32_t current_depth;
+    uint32_t max_depth;
 } SpallBuffer;
 
 
@@ -497,11 +499,12 @@ SPALL_FN void *spall_writer(void *arg) {
     while (buffer->writer.is_running) {
         spall_wait(&buffer->writer.ptr, 0);
         if (!buffer->writer.is_running) { break; }
-        if (buffer->writer.ptr == 0) { continue; }
 
-        size_t size = buffer->writer.size;
         void *buffer_ptr = (void *)atomic_load(&buffer->writer.ptr);
-        buffer->writer.ptr = 0;
+        if (buffer_ptr == 0) { continue; }
+
+        size_t size = (size_t)atomic_load(&buffer->writer.size);
+        atomic_store(&buffer->writer.ptr, 0);
 
         fwrite(buffer_ptr, size, 1, spall_ctx.file);
     }
@@ -512,11 +515,15 @@ SPALL_FN void *spall_writer(void *arg) {
 }
 
 SPALL_FN SPALL_FORCEINLINE bool spall__file_write(void *p, size_t n) {
-    spall_buffer->writer.size = n;
+    atomic_store(&spall_buffer->writer.size, n);
     atomic_store(&spall_buffer->writer.ptr, (uint64_t)p);
     spall_signal(&spall_buffer->writer.ptr);
 
-    while (spall_buffer->writer.ptr != 0) { spall_pause(); }
+    for (;;) {
+        void *ptr = (void *)atomic_load(&spall_buffer->writer.ptr);
+        if (ptr == 0) { break; }
+        spall_pause();
+    }
 
     return true;
 }
@@ -530,6 +537,7 @@ SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_flush(void) {
     if (spall_buffer->head > 0) {
         sbp->size = (uint32_t)(spall_buffer->head - sizeof(SpallBufferHeader));
         sbp->first_ts = spall_buffer->first_ts;
+        sbp->max_depth = spall_buffer->max_depth;
         if (!spall__file_write(spall_buffer->data + data_start, spall_buffer->head)) return false;
 
         spall_buffer->write_half = !spall_buffer->write_half;
@@ -550,6 +558,9 @@ SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_flush(void) {
 }
 
 SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_begin(uint64_t addr, uint64_t caller) {
+    spall_buffer->current_depth += 1;
+    spall_buffer->max_depth = SPALL_MAX(spall_buffer->max_depth, spall_buffer->current_depth);
+
     size_t ev_size = sizeof(SpallMicroBeginEventMax);
     if ((spall_buffer->head + ev_size) > spall_buffer->sub_length) {
         if (!spall_auto_buffer_flush()) {
@@ -570,12 +581,16 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_begin(uint64_t addr, uint64_t
     uint64_t d_addr   = addr   ^ spall_buffer->previous_addr;
     uint64_t d_caller = caller ^ spall_buffer->previous_caller;
 
-    uint64_t dt_size     = spall_delta_to_size(dt);
-    uint64_t addr_size   = spall_delta_to_size(d_addr);
-    uint64_t caller_size = spall_delta_to_size(d_caller);
+    uint64_t dt_bits     = spall_delta_to_bits(dt);
+    uint64_t addr_bits   = spall_delta_to_bits(d_addr);
+    uint64_t caller_bits = spall_delta_to_bits(d_caller);
+
+    uint64_t dt_size     = 1 << dt_bits;
+    uint64_t addr_size   = 1 << addr_bits;
+    uint64_t caller_size = 1 << caller_bits;
 
     // [begin event tag | size of ts | size of addr | size of caller]
-    uint8_t type_byte = (0 << 6) | (spall_squash_2[dt_size] << 4) | (spall_squash_2[addr_size] << 2) | spall_squash_2[caller_size];
+    uint8_t type_byte = (0 << 6) | (dt_bits << 4) | (addr_bits << 2) | caller_bits;
 
     int i = 0;
     *(ev_buffer + i) = type_byte; i += 1;
@@ -593,6 +608,7 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_begin(uint64_t addr, uint64_t
 
 SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
     uint64_t now = spall_get_clock();
+    spall_buffer->current_depth -= 1;
 
     size_t ev_size = sizeof(SpallMicroEndEventMax);
     if ((spall_buffer->head + ev_size) > spall_buffer->sub_length) {
@@ -609,14 +625,15 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
     uint8_t *ev_buffer = (spall_buffer->data + data_start) + spall_buffer->head;
 
     uint64_t dt = now - spall_buffer->previous_ts;
-    uint64_t dt_size = spall_delta_to_size(dt);
+    uint64_t dt_bits = spall_delta_to_bits(dt);
+    uint64_t dt_size = 1 << dt_bits;
 
     // [end event tag | size of ts]
-    uint8_t type_byte = (1 << 6) | (spall_squash_2[dt_size] << 4);
+    uint8_t type_byte = (1 << 6) | (dt_bits << 4);
 
     int i = 0;
     *(ev_buffer + i) = type_byte; i += 1;
-    memcpy(ev_buffer + i, &dt,       8); i += dt_size;
+    memcpy(ev_buffer + i, &dt, 8); i += dt_size;
 
     spall_buffer->previous_ts = now;
     spall_buffer->head += i;
@@ -625,12 +642,15 @@ SPALL_FN SPALL_FORCEINLINE bool spall_buffer_micro_end(void) {
 
 SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_begin(const char *name, signed long name_len, const char *args, signed long args_len) {
 
+    spall_buffer->current_depth += 1;
+    spall_buffer->max_depth = SPALL_MAX(spall_buffer->max_depth, spall_buffer->current_depth);
+
     uint16_t trunc_name_len = (uint16_t)SPALL_MIN(name_len, UINT16_MAX);
     uint16_t trunc_args_len = (uint16_t)SPALL_MIN(args_len, UINT16_MAX);
-	uint64_t name_len_size = (trunc_name_len > 255) ? 2 : 1;
-	uint64_t args_len_size = (trunc_args_len > 255) ? 2 : 1;
+    uint64_t name_len_size = (trunc_name_len > 255) ? 2 : 1;
+    uint64_t args_len_size = (trunc_args_len > 255) ? 2 : 1;
 
-	uint64_t event_tail = trunc_name_len + name_len_size + trunc_args_len + args_len_size;
+    uint64_t event_tail = trunc_name_len + name_len_size + trunc_args_len + args_len_size;
     if ((spall_buffer->head + sizeof(SpallAutoBeginEvent) + event_tail) > spall_buffer->sub_length) {
         if (!spall_auto_buffer_flush()) {
             return false;
@@ -646,11 +666,12 @@ SPALL_NOINSTRUMENT SPALL_FORCEINLINE bool spall_auto_buffer_begin(const char *na
         spall_buffer->previous_ts = now;
     }
     uint64_t dt = now - spall_buffer->previous_ts;
-    uint64_t dt_size = spall_delta_to_size(dt);
+    uint64_t dt_bits = spall_delta_to_bits(dt);
+    uint64_t dt_size = 1 << dt_bits;
 
     // [extended tag | begin type | delta size | field lengths]
-	uint8_t name_args_lens = ((name_len_size >> 1) << 1) | (args_len_size >> 1);
-    uint8_t type_byte = (2 << 6) | (SpallAutoEventType_Begin << 4) | (spall_squash_2[dt_size] << 2) | name_args_lens;
+    uint8_t name_args_lens = ((name_len_size >> 1) << 1) | (args_len_size >> 1);
+    uint8_t type_byte = (2 << 6) | (SpallAutoEventType_Begin << 4) | (dt_bits << 2) | name_args_lens;
 
     int i = 0;
     *(ev_buffer + i) = type_byte;              i += 1;
