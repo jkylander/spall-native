@@ -601,17 +601,17 @@ load_elf :: proc(trace: ^Trace, binary_blob: []u8) -> bool {
 
 	ctx := ELF_Context{}
 	if pre_hdr.class == ELFCLASS64 {
-		ctx.bits_64 = true;
+		ctx.bits_64 = true
 	} else if pre_hdr.class == ELFCLASS32 {
-		ctx.bits_64 = false;
+		ctx.bits_64 = false
 	} else {
 		return false
 	}
 
 	if pre_hdr.endian == ELFDATA2LSB {
-		ctx.little_endian = true;
+		ctx.little_endian = true
 	} else if pre_hdr.endian == ELFDATA2MSB {
-		ctx.little_endian = false;
+		ctx.little_endian = false
 	} else {
 		return false
 	}

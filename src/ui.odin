@@ -670,7 +670,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 
 	// graph
 	cur_y := padded_flamegraph_rect.y - cam.pan.y
-	proc_loop: for proc_v, p_idx in &trace.processes {
+	proc_loop: for &proc_v, p_idx in trace.processes {
 		h1_size : f64 = 0
 		if len(trace.processes) > 1 {
 			if cur_y > full_flamegraph_rect.y {
@@ -681,7 +681,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 			cur_y += h1_size
 		}
 
-		thread_loop: for thread, t_idx in &proc_v.threads {
+		thread_loop: for &thread, t_idx in proc_v.threads {
 			last_cur_y := cur_y
 			h2_size := h2_height + (h2_height / 2)
 			cur_y += h2_size
@@ -702,7 +702,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 			}
 
 			cur_depth_off := 0
-			for depth, d_idx in &thread.depths {
+			for &depth, d_idx in thread.depths {
 				tree := depth.tree
 
 				found_rid := -1
@@ -782,7 +782,7 @@ draw_flamegraphs :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRe
 						scan_arr := depth.events[event_start_idx:event_end_idx]
 						y := ui_state.rect_height * f64(d_idx)
 						h := ui_state.rect_height
-						for ev, de_id in &scan_arr {
+						for &ev, de_id in scan_arr {
 							x := f64(ev.timestamp - trace.total_min_time)
 							duration := f64(bound_duration(&ev, thread.max_time))
 							w := max(duration * cam.current_scale, 2.0)
@@ -959,8 +959,8 @@ draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight
 
 	draw_rect(rects, global_activity_rect, BVec4{u8(wide_bg_color.x), u8(wide_bg_color.y), u8(wide_bg_color.z), u8(wide_bg_color.w)})
 
-	for proc_v, p_idx in &trace.processes {
-		for tm, t_idx in &proc_v.threads {
+	for &proc_v, p_idx in trace.processes {
+		for &tm, t_idx in proc_v.threads {
 			if len(tm.depths) == 0 {
 				continue
 			}
@@ -1009,7 +1009,7 @@ draw_global_activity :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, highlight
 					event_count := get_event_count(depth, tree_idx)
 					event_start_idx := get_event_start_idx(depth, tree_idx)
 					scan_arr := depth.events[event_start_idx:event_start_idx+event_count]
-					for ev, de_id in &scan_arr {
+					for &ev, de_id in scan_arr {
 						x := f64(ev.timestamp - trace.total_min_time)
 						duration := f64(bound_duration(&ev, thread.max_time))
 						w := max(duration * wide_scale_x, 2.0)
@@ -1071,8 +1071,8 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 	y_scale := mini_rect_height / ui_state.rect_height
 
 	tree_y : f64 = padded_flamegraph_rect.y - (cam.pan.y * y_scale)
-	proc_loop: for proc_v, p_idx in &trace.processes {
-		thread_loop: for thread, t_idx in &proc_v.threads {
+	proc_loop: for &proc_v, p_idx in trace.processes {
+		thread_loop: for &thread, t_idx in proc_v.threads {
 
 			mini_thread_gap := 8.0
 			thread_advance := ((f64(len(thread.depths)) * mini_rect_height) + mini_thread_gap)
@@ -1084,7 +1084,7 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 				continue
 			}
 
-			for depth, d_idx in &thread.depths {
+			for &depth, d_idx in thread.depths {
 				found_rid := -1
 				range_loop: for range, r_idx in trace.stats.selected_ranges {
 					if range.pid == p_idx && range.tid == t_idx && range.did == d_idx {
@@ -1148,7 +1148,7 @@ draw_minimap :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIStat
 					if child_count <= 0 {
 						event_start_idx, event_end_idx := get_event_range(&depth, tree_idx)
 						scan_arr := depth.events[event_start_idx:event_end_idx]
-						for ev, de_id in &scan_arr {
+						for &ev, de_id in scan_arr {
 							x := f64(ev.timestamp - trace.total_min_time)
 							duration := f64(bound_duration(&ev, thread.max_time))
 							w := max(duration * x_scale, 2.0)
@@ -1256,9 +1256,9 @@ draw_topbars :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, start_time, end_t
 		rem := v1 - v2
 
 		subdivisions := 10
-		division := math.pow(10, v2); // multiples of 10
-		if rem < 0.3      { division -= (division * 0.8); } // multiples of 2
-		else if rem < 0.6 { division -= (division / 2); } // multiples of 5
+		division := math.pow(10, v2) // multiples of 10
+		if rem < 0.3      { division -= (division * 0.8) } // multiples of 2
+		else if rem < 0.6 { division -= (division / 2) } // multiples of 5
 
 		display_range_start := -ui_state.width / default_scale
 		display_range_end := ui_state.width / default_scale
@@ -1409,7 +1409,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 
 		checkbox_gap := (em / 2)
 		filter_width := measure_text(filter_text, .H2Size, .IconFont)
-		for proc_v, _ in &trace.processes {
+		for &proc_v, _ in trace.processes {
 			checkbox_text := proc_v.in_stats ? checked_checkbox_text : unchecked_checkbox_text
 
 			y := next_line(&y_offset, em)
@@ -1433,7 +1433,7 @@ draw_stats :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState)
 			}
 
 
-			for thread, _ in &proc_v.threads {
+			for &thread, _ in proc_v.threads {
 				checkbox_text := thread.in_stats ? checked_checkbox_text : unchecked_checkbox_text
 
 				y := next_line(&y_offset, em)
@@ -2195,7 +2195,7 @@ process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
 				thread := trace.processes[range.pid].threads[range.tid]
 				events := thread.depths[range.did].events[start_idx:range.end]
 
-				for ev, e_idx in &events {
+				for &ev, e_idx in events {
 					if event_count > iter_max {
 						trace.stats.cur_offset = StatOffset{r_idx, start_idx + e_idx}
 						broke_early = true
@@ -2240,7 +2240,7 @@ process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
 				thread := trace.processes[range.pid].threads[range.tid]
 				events := thread.depths[range.did].events[start_idx:range.end]
 
-				for ev, e_idx in &events {
+				for &ev, e_idx in events {
 					if event_count > iter_max {
 						trace.stats.cur_offset = StatOffset{r_idx, start_idx + e_idx}
 						broke_early = true

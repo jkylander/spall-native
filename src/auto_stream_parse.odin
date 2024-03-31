@@ -95,7 +95,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
                 has_addr = true,
                 id = id,
                 duration = -1,
-                timestamp = timestamp
+                timestamp = timestamp,
             }
 
             ev_idx := len(depth.events)-1
@@ -197,7 +197,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
                     id = id,
                     args = args,
                     duration = -1,
-                    timestamp = timestamp
+                    timestamp = timestamp,
                 }
 
                 ev_idx := len(depth.events)-1

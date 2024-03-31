@@ -101,7 +101,7 @@ ease_in :: proc(t: f32) -> f32 {
 	return 1 - math.cos((t * math.PI) / 2)
 }
 ease_in_out :: proc(t: f32) -> f32 {
-    return -(math.cos(math.PI * t) - 1) / 2;
+    return -(math.cos(math.PI * t) - 1) / 2
 }
 
 ONE_DAY    :: 1000 * 1000 * 1000 * 60 * 60 * 24

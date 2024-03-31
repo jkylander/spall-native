@@ -61,8 +61,8 @@ setup_tid :: proc(trace: ^Trace, p_idx: int, thread_id: u32) -> int {
 }
 
 free_trace_temps :: proc(trace: ^Trace) {
-	for process in &trace.processes {
-		for thread in &process.threads {
+	for &process in trace.processes {
+		for &thread in process.threads {
 			stack_free(&thread.bande_q)
 		}
 		vh_free(&process.thread_map)
@@ -71,8 +71,8 @@ free_trace_temps :: proc(trace: ^Trace) {
 }
 
 free_trace :: proc(trace: ^Trace) {
-	for process in &trace.processes {
-		for thread in &process.threads {
+	for &process in trace.processes {
+		for &thread in process.threads {
 			free_thread(&thread)
 		}
 		free_process(&process)
@@ -164,7 +164,7 @@ gen_event_color :: proc(trace: ^Trace, _events: []Event, thread_max: i64, node: 
 
 	color := FVec3{}
 	color_weights := [COLOR_CHOICES]i64{}
-	for ev in &events {
+	for &ev in events {
 		idx := name_color_idx(ev.id)
 		duration := bound_duration(&ev, thread_max)
 
