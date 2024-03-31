@@ -1808,7 +1808,7 @@ process_multiselect :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, pan_delta:
 	// Handle de-select
 	if mouse_up_now && !did_pan && pt_in_rect(clicked_pos, inner_flamegraph_rect) && !clicked_on_rect && !shift_down {
 		trace.stats.selected_event = empty_event
-		resize(&trace.stats.selected_ranges, 0)
+		non_zero_resize(&trace.stats.selected_ranges, 0)
 
 		multiselect_t = 0
 		trace.stats.state = .NoStats
@@ -2168,7 +2168,7 @@ init_stat_state :: proc(stats: ^Stats, ui_state: ^UIState) {
 	stats.just_started = true
 
 	sm_clear(&stats.stat_map)
-	resize(&stats.selected_ranges, 0)
+	non_zero_resize(&stats.selected_ranges, 0)
 }
 
 process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {

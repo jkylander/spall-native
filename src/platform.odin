@@ -229,13 +229,13 @@ flush_text_batch :: proc(text_rects: ^[dynamic]TextRect) {
 		gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 1)
 	}
 
-	resize(text_rects, 0)
+	non_zero_resize(text_rects, 0)
 }
 
 flush_rects :: proc(rects: ^[dynamic]DrawRect) {
 	gl.BufferData(gl.ARRAY_BUFFER, len(rects)*size_of(rects[0]), raw_data(rects[:]), gl.DYNAMIC_DRAW)
 	gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, i32(len(rects)))
-	resize(rects, 0)
+	non_zero_resize(rects, 0)
 }
 
 get_system_color :: proc() -> bool { return false }
