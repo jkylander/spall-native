@@ -6,6 +6,9 @@ jobs:
     name: Ubuntu Build and Test
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Spall
+        uses: actions/checkout@v4
+    
       - name: Checkout Odin
         uses: actions/checkout@v4
         with:
@@ -16,10 +19,8 @@ jobs:
         run: |
           cd odin
           ./build_odin.sh
-
-      - name: Checkout Spall
-        uses: actions/checkout@v4
         
       - name: Build Spall
         run: |
+          echo "$(pwd)/odin" >> $GITHUB_PATH
           ./build.sh release
