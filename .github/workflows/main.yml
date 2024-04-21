@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build_linux:
+    name: Ubuntu Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout and Build Odin
+      - uses: actions/checkout@v4
+        with:
+          repository: Odin-lang/odin
+      - run: |
+          ./build_odin.sh
+
+      - name: Build Spall
+        uses: actions/checkout@v4
+      - run: |
+          ./build.sh release
