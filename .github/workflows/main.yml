@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Grab Spall Dependencies
         run: |
-          brew install sdl2 sdl2_ttf
+          brew install sdl2 sdl2_ttf llvm@14
     
       - name: Checkout Spall
         uses: actions/checkout@v4
