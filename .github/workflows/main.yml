@@ -6,14 +6,15 @@ jobs:
     name: Ubuntu Build and Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout and Build Odin
+      - name: Checkout Odin
       - uses: actions/checkout@v4
         with:
           repository: Odin-lang/odin
-      - run: |
+
+      - name: Build Odin
+        run: |
           ./build_odin.sh
 
       - name: Build Spall
-        uses: actions/checkout@v4
-      - run: |
+        run: |
           ./build.sh release
