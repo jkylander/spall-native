@@ -120,8 +120,9 @@ jobs:
         run: |
           cd odin
           & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          ./build.bat
-          Add-Content $env:GITHUB_PATH (Get-Item .).FullName
+          & ./build.bat
+          $CUR_PATH = (Get-Item .).FullName
+          Add-Content $env:GITHUB_PATH $CUR_PATH
         
       - name: Build Spall
         run: |
