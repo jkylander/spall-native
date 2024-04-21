@@ -126,4 +126,10 @@ jobs:
         
       - name: Build Spall
         run: |
-          odin build
+          ./build.bat release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: windows_artifacts
+          path: bin
