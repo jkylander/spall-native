@@ -186,3 +186,9 @@ jobs:
           cp spall_osx_x86/spall            spall_pkg/spall_osx_x86
           cp spall_osx_arm/spall            spall_pkg/spall_osx_arm
           cp spall_windows/spall.exe        spall_pkg/spall_windows.exe
+
+      - name: Upload Release Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: spall_release
+          path: spall_pkg
