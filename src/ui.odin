@@ -2318,6 +2318,8 @@ draw_trace :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, tr
 		greyanim_t = f32((t - multiselect_t) * 5)
 		greymotion = ease_in_out(greyanim_t)
 
+		// FIXME(will) this is kinda gross
+		// load_config gets triggered when start_trace is set
 		if start_trace != "" && !ui_state.loading_config {
 			load_config(global_pool, trace, ui_state)
 		}

@@ -602,6 +602,8 @@ main :: proc() {
 				case .R:
 					if trace.file_name != "" && !capture_text && ctrl_down && !ui_state.loading_config {
 						fmt.printf("attempting to load %s\n", trace.file_name)
+						// FIXME(will) it would be nice if this could be a function
+						// but it can't without deeper fixes to the the data flow
 						start_trace = strings.clone(trace.file_name)
 						// NOTE(will) maybe necessary?
 						ui_state.ui_mode = .TraceView
