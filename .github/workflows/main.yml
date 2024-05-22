@@ -190,9 +190,10 @@ jobs:
           cp spall_osx_x86/spall            spall_pkg/spall_osx_x86
           cp spall_osx_arm/spall            spall_pkg/spall_osx_arm
           cp spall_windows/spall.exe        spall_pkg/spall_windows.exe
+          echo "DATE=$(date '+%Y_%m_%d')" >> $GITHUB_ENV
 
       - name: Upload Release Build
         uses: actions/upload-artifact@v4
         with:
-          name: spall_release
+          name: spall_native_${{ env.DATE }}
           path: spall_pkg
