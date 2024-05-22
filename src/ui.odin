@@ -421,6 +421,13 @@ draw_header :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState
 		}
 		cursor_x += button_width + button_pad
 
+		if button(rects, Rect{cursor_x, (header_rect.h / 2) - (button_height / 2), button_width, button_height}, "\uf0e2", "reload the current trace", .IconFont, 0, ui_state.width) {
+			// reload the file
+			fmt.printf("attempting to load %s\n", trace.file_name)
+			start_trace = strings.clone(trace.file_name)
+			ui_state.ui_mode = .TraceView
+		}
+
 		file_name_width := measure_text(trace.base_name, .H1Size, .DefaultFont)
 		name_x := max((full_flamegraph_rect.w / 2) - (file_name_width / 2), cursor_x)
 		draw_text(rects, trace.base_name, Vec2{name_x, (header_rect.h / 2) - (h1_height / 2)}, .H1Size, .DefaultFont, toolbar_text_color)
