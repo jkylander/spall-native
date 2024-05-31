@@ -8,8 +8,9 @@ import "core:time"
 import "core:unicode/utf8"
 
 import SDL "vendor:sdl2"
-import SDL_TTF "vendor:sdl2/ttf"
 import gl "vendor:OpenGL"
+
+import stbtt "vendor:stb/truetype"
 
 mouse_down :: proc(x, y: f64) {
 	is_mouse_down = true
@@ -116,10 +117,6 @@ reset_cursor :: proc() {
 	is_hovering = false
 }
 
-get_font :: proc(scale: FontSize, font_type: FontType) -> ^SDL_TTF.Font {
-	font_idx := (u32(font_type) * u32(FontSize.LastSize)) + u32(scale)
-	return all_fonts[font_idx]
-}
 
 get_text_height :: proc(scale: FontSize, font: FontType) -> f64 { 
 	#partial switch scale {
@@ -142,7 +139,6 @@ cache_hits_this_frame := 0
 cache_misses_this_frame := 0
 
 
-import stbtt "vendor:stb/truetype"
 font_map: [FontType.LastFont]stbtt.fontinfo
 font_temp : [256*256]u8
 font_size : [FontSize.LastSize]f32
@@ -159,26 +155,26 @@ alpha_blit :: proc(dst, src:IRect, srcStride:i32, output:[]u8, input:[]u8)
 get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU_Text {
 	text_blob, ok := lru.get(&lru_text_cache, LRU_Key{ scale, font_type, str })
 	if !ok {
-		font := get_font(scale, font_type)
-
+		//font := get_font(scale, font_type)
 		long_str := strings.clone(str)
-		//potato := strings.clone_to_cstring(long_str, context.temp_allocator)
-		//surface := SDL_TTF.RenderUTF8_Blended(font, potato, SDL.Color{255, 255, 255, 255})
-
 
 		width :i32= 0
 		height :i32= 0
 		pen := FVec2 {0, 0}
-		pixel_height := font_size[scale] 
+		pixel_height := font_size[scale]
 		fontinfo := &font_map[font_type]
 
-		sf := stbtt.ScaleForPixelHeight(fontinfo, pixel_height)
-
-		// loop 1: determine size of text to be drawn
-		for ch in str {
+		sf := stbtt.ScaleForMappingEmToPixels(fontinfo, pixel_height)
+		runes := utf8.string_to_runes(str)
+		for ch, i in runes {
 			adv, lsb : i32
 			stbtt.GetCodepointHMetrics(fontinfo, ch, &adv, &lsb)
-			width += adv
+			x0, y0, x1, y1:i32
+			stbtt.GetCodepointBox(fontinfo, ch, &x0, &y0, &x1, &y1)
+			width += adv 
+			if i < len(runes)-1 {
+				width += stbtt.GetCodepointKernAdvance(fontinfo, ch, runes[i+1])
+			}
 		}
 		width = cast(i32)(cast(f32)width * sf)
 		width += 2
@@ -191,25 +187,22 @@ get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU
 
 		output := make([]u8, width * height)
 
-
-
-		runes := utf8.string_to_runes(str)
-
-
 		for ch, i in runes {
 			adv, lsb : i32
 			stbtt.GetCodepointHMetrics(fontinfo, ch, &adv, &lsb)
 
+			subpixel := pen.x - math.floor(pen.x)
+
 			ix0, iy0, ix1, iy1 : i32
-			stbtt.GetCodepointBitmapBox(fontinfo, ch, sf, sf, &ix0, &iy0, &ix1, &iy1)
+			stbtt.GetCodepointBitmapBoxSubpixel(fontinfo, ch, sf, sf, subpixel, 0, &ix0, &iy0, &ix1, &iy1)
 			x0, y0, x1, y1:i32
 			stbtt.GetCodepointBox(fontinfo, ch, &x0, &y0, &x1, &y1)
 
-			stbtt.MakeCodepointBitmap(fontinfo, raw_data(font_temp[:]), ix1 - ix0, iy1 - iy0, 256, sf, sf, ch)
+			//stbtt.MakeCodepointBitmap(fontinfo, raw_data(font_temp[:]), ix1 - ix0, iy1 - iy0, 256, sf, sf, ch)
+			stbtt.MakeGlyphBitmapSubpixel(fontinfo, raw_data(font_temp[:]), ix1-ix0, iy1-iy0, 256, sf, sf, subpixel, 0, stbtt.FindGlyphIndex(fontinfo, ch))
 
-		//fmt.print("%v %v %v\n", ix0, lsb, ix0 - lsb)
 			src := IRect { 0, 0, ix1 - ix0, iy1 - iy0 }
-			dst := IRect { cast(i32) (pen.x + cast(f32)(lsb-ix0) * sf) , baseline + iy0, width, height }
+			dst := IRect { cast(i32) (pen.x + cast(f32)(lsb) * sf), baseline + iy0, width, height }
 
 			alpha_blit(dst, src, 256, output, font_temp[:])
 
@@ -218,27 +211,13 @@ get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU
 			}
 
 			pen.x += cast(f32)adv * sf
-			// ignore kerning for now
-
 		}
-
-		//width := surface.w
-		//height := surface.h
-
-		//pixels := make([]u8, width * height * 4)
-		//SDL.ConvertPixels(width, height, surface.format.format, surface.pixels, surface.pitch,
-		//				  surface.format.format, raw_data(pixels), width * 4)
-
-		//SDL.FreeSurface(surface)
-
-
 
 		output32 := make([]u32, width * height)
 		for i := 0; i < len(output); i += 1 {
 			o := cast(u32)output[i]
 			output32[i] = o << 24 | o << 8 | o << 16 | o
 		}
-
 
 		handle : u32 = 0
 		gl.GenTextures(1, &handle)
