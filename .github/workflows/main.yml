@@ -23,6 +23,7 @@ jobs:
         run: |
           cd odin
           ./build_odin.sh
+          make -C vendor/stb/src
           echo $PWD >> $GITHUB_PATH
         
       - name: Build Spall
