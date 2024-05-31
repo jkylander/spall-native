@@ -139,15 +139,14 @@ cache_hits_this_frame := 0
 cache_misses_this_frame := 0
 
 
-font_map: [FontType.LastFont]stbtt.fontinfo
+font_map  : [FontType.LastFont]stbtt.fontinfo
 font_temp : [256*256]u8
 font_size : [FontSize.LastSize]f32
 
-alpha_blit :: proc(dst, src:IRect, srcStride:i32, output:[]u8, input:[]u8)
-{
-	for i :i32= 0; i < src.h; i += 1 {
-		for j :i32= 0; j < src.w; j += 1 {
-			output[(i+dst.y) * dst.w + (j+dst.x)] += input[(i+src.y) * srcStride + (j+src.x)]
+alpha_blit :: proc(dst, src: IRect, src_stride: i32, output: []u8, input: []u8) {
+	for i : i32 = 0; i < src.h; i += 1 {
+		for j : i32 = 0; j < src.w; j += 1 {
+			output[(i+dst.y) * dst.w + (j+dst.x)] += input[(i+src.y) * src_stride + (j+src.x)]
 		}
 	}
 }
@@ -155,12 +154,11 @@ alpha_blit :: proc(dst, src:IRect, srcStride:i32, output:[]u8, input:[]u8)
 get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU_Text {
 	text_blob, ok := lru.get(&lru_text_cache, LRU_Key{ scale, font_type, str })
 	if !ok {
-		//font := get_font(scale, font_type)
 		long_str := strings.clone(str)
 
-		width :i32= 0
-		height :i32= 0
-		pen := FVec2 {0, 0}
+		width : i32 = 0
+		height : i32 = 0
+		pen := FVec2{0, 0}
 		pixel_height := font_size[scale]
 		fontinfo := &font_map[font_type]
 
@@ -169,53 +167,53 @@ get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU
 		for ch, i in runes {
 			adv, lsb : i32
 			stbtt.GetCodepointHMetrics(fontinfo, ch, &adv, &lsb)
-			x0, y0, x1, y1:i32
+
+			x0, y0, x1, y1 : i32
 			stbtt.GetCodepointBox(fontinfo, ch, &x0, &y0, &x1, &y1)
 			width += adv 
+
 			if i < len(runes)-1 {
 				width += stbtt.GetCodepointKernAdvance(fontinfo, ch, runes[i+1])
 			}
 		}
-		width = cast(i32)(cast(f32)width * sf)
+
+		width = i32(f32(width) * sf)
 		width += 2
 
-		ascent, descent, lineGap : i32
-		stbtt.GetFontVMetrics(fontinfo, &ascent, &descent, &lineGap)
-		height += cast(i32)(cast(f32)(ascent - descent) * sf + 2)
+		ascent, descent, line_gap : i32
+		stbtt.GetFontVMetrics(fontinfo, &ascent, &descent, &line_gap)
+		height += i32(f32(ascent - descent) * sf + 2)
 
-		baseline := cast(i32)(cast(f32)ascent * sf) + 1
-
-		output := make([]u8, width * height)
+		baseline := i32(f32(ascent) * sf) + 1
+		output   := make([]u8,  width * height)
+		output32 := make([]u32, width * height)
 
 		for ch, i in runes {
 			adv, lsb : i32
 			stbtt.GetCodepointHMetrics(fontinfo, ch, &adv, &lsb)
-
 			subpixel := pen.x - math.floor(pen.x)
 
 			ix0, iy0, ix1, iy1 : i32
 			stbtt.GetCodepointBitmapBoxSubpixel(fontinfo, ch, sf, sf, subpixel, 0, &ix0, &iy0, &ix1, &iy1)
-			x0, y0, x1, y1:i32
-			stbtt.GetCodepointBox(fontinfo, ch, &x0, &y0, &x1, &y1)
 
-			//stbtt.MakeCodepointBitmap(fontinfo, raw_data(font_temp[:]), ix1 - ix0, iy1 - iy0, 256, sf, sf, ch)
-			stbtt.MakeGlyphBitmapSubpixel(fontinfo, raw_data(font_temp[:]), ix1-ix0, iy1-iy0, 256, sf, sf, subpixel, 0, stbtt.FindGlyphIndex(fontinfo, ch))
+			x0, y0, x1, y1 : i32
+			stbtt.GetCodepointBox(fontinfo, ch, &x0, &y0, &x1, &y1)
+			stbtt.MakeGlyphBitmapSubpixel(fontinfo, raw_data(font_temp[:]), ix1 - ix0, iy1 - iy0, 256, sf, sf, subpixel, 0, stbtt.FindGlyphIndex(fontinfo, ch))
 
 			src := IRect { 0, 0, ix1 - ix0, iy1 - iy0 }
-			dst := IRect { cast(i32) (pen.x + cast(f32)(lsb) * sf), baseline + iy0, width, height }
+			dst := IRect { i32(pen.x + f32(lsb) * sf), baseline + iy0, width, height }
 
 			alpha_blit(dst, src, 256, output, font_temp[:])
 
 			if i < len(runes)-1 {
-				pen.x += sf * cast(f32)stbtt.GetCodepointKernAdvance(fontinfo, ch, runes[i+1])
+				pen.x += sf * f32(stbtt.GetCodepointKernAdvance(fontinfo, ch, runes[i+1]))
 			}
 
-			pen.x += cast(f32)adv * sf
+			pen.x += f32(adv) * sf
 		}
 
-		output32 := make([]u32, width * height)
 		for i := 0; i < len(output); i += 1 {
-			o := cast(u32)output[i]
+			o := u32(output[i])
 			output32[i] = o << 24 | o << 8 | o << 16 | o
 		}
 
@@ -228,9 +226,9 @@ get_text_cache :: proc(str: string, scale: FontSize, font_type: FontType) -> LRU
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, raw_data(output32))
+
 		delete(output)
 		delete(output32)
-		//delete(pixels)
 
 		text_blob = LRU_Text{ handle, width, height }
 		lru.set(&lru_text_cache, LRU_Key{ scale, font_type, long_str }, text_blob)
