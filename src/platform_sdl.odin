@@ -328,10 +328,10 @@ reset_cursor :: proc(gfx: ^GFX_Context) {
 	is_hovering = false
 }
 
-get_clipboard :: proc() -> string {
+get_clipboard :: proc(gfx: ^GFX_Context) -> string {
 	return string(SDL.GetClipboardText())
 }
-set_clipboard :: proc(text: string) {
+set_clipboard :: proc(gfx: ^GFX_Context, text: string) {
 	cstr_text := strings.clone_to_cstring(text, context.temp_allocator)
 	SDL.SetClipboardText(cstr_text)
 }

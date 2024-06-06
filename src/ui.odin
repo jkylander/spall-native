@@ -1535,18 +1535,18 @@ draw_stats :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 		if loc_val.y != -1 {
 			if button(gfx, Rect{stats_pane_x, loc_val.y, button_height, button_width}, 
 					  "\uf0ea", "Copy Location", .IconFont, 0, ui_state.width) {
-				set_clipboard(loc_val.str)
+				set_clipboard(gfx, loc_val.str)
 			}
 		}
 		if args_val.y != -1 {
 			if button(gfx, Rect{stats_pane_x, args_val.y, button_height, button_width}, 
 					  "\uf0ea", "Copy Function Extra Data", .IconFont, 0, ui_state.width) {
-				set_clipboard(args_val.str)
+				set_clipboard(gfx, args_val.str)
 			}
 		}
 		if button(gfx, Rect{stats_pane_x, text_val.y, button_height, button_width}, 
 				  "\uf0ea", "Copy Function Name", .IconFont, 0, ui_state.width) {
-			set_clipboard(text_val.str)
+			set_clipboard(gfx, text_val.str)
 		}
 
 		// If we've got stats cooking already

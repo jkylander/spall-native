@@ -39,6 +39,10 @@ GFX_Context :: struct {
 	dnd_type_list:   xlib.Atom,
 	text_uri_list:   xlib.Atom,
 
+	clipboard: xlib.Atom,
+	targets: xlib.Atom,
+	clipboard_stash: cstring,
+
 	dnd_version: int,
 	dnd_src_window: xlib.Window,
 	dnd_format: xlib.Atom,
@@ -278,6 +282,8 @@ create_context :: proc(title: cstring, width, height: int) -> (GFX_Context, f64,
 	xlib.SetWMProtocols(dpy, window, &delete_win, 1)
 
 	utf8_string             := xlib.InternAtom(dpy, "UTF8_STRING", false)
+	clipboard               := xlib.InternAtom(dpy, "CLIPBOARD", false)
+	targets                 := xlib.InternAtom(dpy, "TARGETS", false)
 	net_wm_name             := xlib.InternAtom(dpy, "_NET_WM_NAME", false)
 	net_wm_icon_name        := xlib.InternAtom(dpy, "_NET_WM_ICON_NAME", false)
 	net_wm_state            := xlib.InternAtom(dpy, "_NET_WM_STATE", false)
@@ -400,8 +406,6 @@ create_context :: proc(title: cstring, width, height: int) -> (GFX_Context, f64,
 
 	gfx.delete_win = delete_win
 	gfx.wm_protos = wm_proto
-	gfx.net_wm_state = net_wm_state
-	gfx.net_wm_state_fullscreen = net_wm_state_fullscreen
 
 	gfx.dnd_enter     = dnd_enter
 	gfx.dnd_position  = dnd_position
@@ -412,9 +416,13 @@ create_context :: proc(title: cstring, width, height: int) -> (GFX_Context, f64,
 	gfx.dnd_type_list   = dnd_type_list
 	gfx.text_uri_list   = text_uri_list
 
-	gfx.utf8_string = utf8_string
-	gfx.net_wm_name = net_wm_name
-	gfx.net_wm_icon_name = net_wm_icon_name
+	gfx.utf8_string             = utf8_string
+	gfx.net_wm_name             = net_wm_name
+	gfx.net_wm_icon_name        = net_wm_icon_name
+	gfx.net_wm_state            = net_wm_state
+	gfx.net_wm_state_fullscreen = net_wm_state_fullscreen
+	gfx.clipboard               = clipboard
+	gfx.targets                 = targets
 
 	gfx.rects = make([dynamic]DrawRect)
 	gfx.text_rects = make([dynamic]TextRect)
@@ -580,6 +588,36 @@ get_next_event :: proc(gfx: ^GFX_Context, wait: bool) -> PlatformEvent {
 				return PlatformEvent{type = .FileDropped, str = path}
 			}
 		}
+		case .SelectionRequest: {
+			request := event.xselectionrequest
+			is_selection_owner := xlib.GetSelectionOwner(gfx.x_display, gfx.clipboard) == gfx.window
+			if is_selection_owner && request.selection == gfx.clipboard {
+
+				send_event: xlib.XEvent
+				send_event.xany.type            = .SelectionNotify
+				send_event.xselection.selection = request.selection
+				send_event.xselection.target    = 0
+				send_event.xselection.property  = 0
+				send_event.xselection.requestor = request.requestor
+				send_event.xselection.time      = request.time
+
+				if request.target == gfx.targets {
+					xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, xlib.XA_ATOM,
+					32, xlib.PropModeReplace, &gfx.utf8_string, 1)
+
+					send_event.xselection.property = request.property
+					send_event.xselection.target = gfx.targets
+				} else if request.target == gfx.utf8_string {
+					xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, request.target,
+					8, xlib.PropModeReplace, rawptr(gfx.clipboard_stash), i32(len(gfx.clipboard_stash)))
+					send_event.xselection.property = request.property
+					send_event.xselection.target = request.target
+				}
+
+				xlib.SendEvent(gfx.x_display, request.requestor, false, {}, &send_event)
+				xlib.Flush(gfx.x_display)
+			}
+		}
 		case .ButtonPress: {
 			type := MouseButtonType.None
 			#partial switch event.xbutton.button {
@@ -654,10 +692,15 @@ set_fullscreen :: proc(gfx: ^GFX_Context, fullscreen: bool) -> (int, int) {
 	return 0, 0
 }
 
-get_clipboard :: proc() -> string {
+get_clipboard :: proc(gfx: ^GFX_Context) -> string {
 	return ""
 }
-set_clipboard :: proc(text: string) {
+set_clipboard :: proc(gfx: ^GFX_Context, text: string) {
+	if gfx.clipboard_stash != "" {
+		delete(gfx.clipboard_stash)
+	}
+	xlib.SetSelectionOwner(gfx.x_display, gfx.clipboard, gfx.window, xlib.CurrentTime)
+	gfx.clipboard_stash = strings.clone_to_cstring(text)
 }
 
 set_window_title :: proc(gfx: ^GFX_Context, title: cstring) {

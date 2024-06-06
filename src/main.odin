@@ -463,7 +463,7 @@ main :: proc() {
 							}
 						case .V:
 							if capture_text && (ctrl_down || super_down) {
-								path := get_clipboard()
+								path := get_clipboard(&gfx)
 								strings.builder_reset(&selected_box.b)
 								strings.write_string(&selected_box.b, path)
 								selected_box.cursor = len(selected_box.b.buf)
