@@ -17,7 +17,6 @@ import "core:prof/spall"
 
 import glm "core:math/linalg/glsl"
 
-import SDL "vendor:sdl2"
 import gl "vendor:OpenGL"
 
 import stbtt "vendor:stb/truetype"
@@ -60,9 +59,6 @@ resort_stats := false
 
 // drawing state
 colormode      := ColorMode.Dark
-default_cursor: ^SDL.Cursor
-pointer_cursor: ^SDL.Cursor
-text_cursor:    ^SDL.Cursor
 
 // font data
 dpr:       f64 = 1
@@ -259,101 +255,19 @@ main :: proc() {
 		return
 	}
 
-	orig_window_width: i32 = 1280
-	orig_window_height: i32 = 720
-
-	platform_pre_init()
-
-	dpi_hack_val := platform_dpi_hack()
-	if dpi_hack_val > 0 {
-		dpr = dpi_hack_val
-		orig_window_width = i32(f64(orig_window_width) * dpr)
-		orig_window_height = i32(f64(orig_window_height) * dpr)
-	}
-
 	set_color_mode(false, true)
 
-	SDL.Init({.VIDEO})
-
-	GL_VERSION_MAJOR :: 3
-	GL_VERSION_MINOR :: 3
-	SDL.GL_SetAttribute(.CONTEXT_PROFILE_MASK,  i32(SDL.GLprofile.CORE))
-	SDL.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, GL_VERSION_MAJOR)
-	SDL.GL_SetAttribute(.CONTEXT_MINOR_VERSION, GL_VERSION_MINOR)
-
-	SDL.GL_SetAttribute(.MULTISAMPLEBUFFERS, 1)
-	SDL.GL_SetAttribute(.MULTISAMPLESAMPLES, 2)
-	SDL.GL_SetAttribute(SDL.GLattr.FRAMEBUFFER_SRGB_CAPABLE, 1)
-
-	SDL.SetHint(SDL.HINT_MOUSE_FOCUS_CLICKTHROUGH, "1")
-
-	window := SDL.CreateWindow("spall", SDL.WINDOWPOS_CENTERED, SDL.WINDOWPOS_CENTERED, orig_window_width, orig_window_height, {.OPENGL, .RESIZABLE, .ALLOW_HIGHDPI})
-	if window == nil {
-		fmt.eprintln("Failed to create window")
-		return
-	}
-
-	platform_post_init()
-
-	default_cursor = SDL.CreateSystemCursor(.ARROW)
-	pointer_cursor = SDL.CreateSystemCursor(.HAND)
-	text_cursor    = SDL.CreateSystemCursor(.IBEAM)
-
-	gl_context := SDL.GL_CreateContext(window)
-	if gl_context == nil {
-		fmt.eprintln("Failed to create gl context!")
-		return
-	}
-
-	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, SDL.gl_set_proc_address)
-
-	if FULL_SPEED {
-		SDL.GL_SetSwapInterval(0)
-	} else {
-		SDL.GL_SetSwapInterval(-1)
-	}
-
-	version_str := gl.GetString(gl.VERSION)
-	if version_str == "1.1.0" {
-		fmt.eprintf("GL version is too old! Got %s, needs at least %d.%d.0\n", version_str, GL_VERSION_MAJOR, GL_VERSION_MINOR)
-		return
-	}
+	gfx := GFX_Context{}
+	width, height: f64
+	gfx, dpr, width, height = create_context("spall", 1280, 720)
 
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
 	gl.Enable(gl.MULTISAMPLE)
 	gl.Enable(gl.FRAMEBUFFER_SRGB)
 
-	real_window_width: i32
-	real_window_height: i32
-	pretend_window_width: i32
-	pretend_window_height: i32
-	SDL.GetWindowSize(window, &pretend_window_width, &pretend_window_height)
-	SDL.GL_GetDrawableSize(window, &real_window_width, &real_window_height)
-	width := f64(pretend_window_width)
-	height := f64(pretend_window_height)
-
-
-	// on certain platforms (windows) we need to grab the DPI explicitly, on certain (mac or linux)
-	// we can infer it from the window size we got vs the window size we asked for (it scales it up
-	// based on DPI).
-	if dpi_hack_val < 0 {
-		dpr_w := f64(real_window_width) / f64(pretend_window_width)
-		dpr_h := f64(real_window_height) / f64(pretend_window_height)
-		dpr = dpr_w
-		width = width * dpr
-		height = height * dpr
-	}
-
 	lru.init(&lru_text_cache, 1000)
 	lru_text_cache.on_remove = rm_text_cache
-
-	/*
-	// Use dynamic on-disk fonts
-	names := []string{ "Montserrat-Regular.ttf", "FiraMono-Regular.ttf", "fontawesome-webfont.ttf" }
-	sizes := []f64{ p_height * dpr, h1_height * dpr, h2_height * dpr }
-	all_fonts = grab_dynamic_fonts(names, sizes)
-	*/
 
 	// Load statically packed fonts
 	sans_font := #load("../fonts/Montserrat-Regular.ttf")
@@ -463,152 +377,141 @@ main :: proc() {
 				break
 			}
 		}
+
 		if capture_text {
-			SDL.StartTextInput()
 			selected_box = &ui_state.textboxes[selected_box_id]
-		} else {
-			SDL.StopTextInput()
 		}
 
-		// event polling
-		event: SDL.Event = ---
+		ev := PlatformEvent{}
 		event_loop: for {
 			if !awake {
-				ret := SDL.WaitEvent(&event)
-				if !ret {
+				ev = get_next_event(&gfx, true) // block for event
+				if ev.type == .None {
 					break event_loop
 				}
-
 				was_sleeping = true
 				awake = true
 			} else {
-				ret := SDL.PollEvent(&event)
-				if !ret {
+				ev = get_next_event(&gfx, false) // don't block for event
+				if ev.type == .None {
 					break event_loop
 				}
 			}
 
-			#partial switch event.type {
-			case .QUIT:
-				break main_loop
-			case .KEYDOWN:
-				alt_down   = (event.key.keysym.mod & SDL.KMOD_ALT) != SDL.Keymod{}
-				shift_down = (event.key.keysym.mod & SDL.KMOD_SHIFT) != SDL.Keymod{}
-				ctrl_down  = (event.key.keysym.mod & SDL.KMOD_CTRL) != SDL.Keymod{}
-				super_down = (event.key.keysym.mod & SDL.KMOD_GUI) != SDL.Keymod{}
+			#partial switch ev.type {
+				case .Exit: break main_loop
+				case .MouseMoved: {
+					mouse_moved(ev.x, ev.y)
+				}
+				case .MouseUp: {
+					if ev.mouse == .Left {
+						mouse_up(ev.x, ev.y)
+					}
+				}
+				case .MouseDown: {
+					if ev.mouse == .Left {
+						mouse_down(ev.x, ev.y)
+					}
+				}
+				case .Scroll: {
+					mouse_scroll(ev.y)
+				}
+				case .KeyDown: {
+					#partial switch ev.key {
+						case .LeftShift:    shift_down = true
+						case .RightShift:   shift_down = true
+						case .LeftControl:  ctrl_down = true
+						case .RightControl: ctrl_down = true
+						case .LeftAlt:      alt_down = true
+						case .RightAlt:     alt_down = true
+						case .LeftSuper:    super_down = true
+						case .RightSuper:   super_down = true
 
-				#partial switch event.key.keysym.sym {
-				case .RETURN:
-					if alt_down {
-						should_toggle_fullscreen = true
-					}
-				case .F11:
-					should_toggle_fullscreen = true
-				case .BACKSPACE:
-					if capture_text {
-						new_cursor := step_left_rune(selected_box.b.buf[:], selected_box.cursor)
-						remove_range(&selected_box.b.buf, new_cursor, selected_box.cursor)
-						selected_box.cursor = new_cursor
-					}
-				case .TAB:
-					if capture_text {
-						selected_box.focus = false
-						if shift_down {
-							selected_box = selected_box.prev
-						} else {
-							selected_box = selected_box.next
+						case .F11: should_toggle_fullscreen = true
+						case .Return: {
+							if alt_down {
+								should_toggle_fullscreen = true
+							}
 						}
-						selected_box.focus = true
-					}
-				case .LEFT:
-					if capture_text {
-						selected_box.cursor = step_left_rune(selected_box.b.buf[:], selected_box.cursor)
-					}
-				case .RIGHT:
-					if capture_text {
-						selected_box.cursor = step_right_rune(selected_box.b.buf[:], selected_box.cursor)
-					}
-				case .UP:
-					if capture_text {
-						selected_box.cursor = 0
-					}
-				case .DOWN:
-					if capture_text {
-						selected_box.cursor = len(selected_box.b.buf)
-					}
-				case .V:
-					if capture_text && (ctrl_down || super_down) {
-						path := get_clipboard()
-						strings.builder_reset(&selected_box.b)
-						strings.write_string(&selected_box.b, path)
-						selected_box.cursor = len(selected_box.b.buf)
-					}
-				case .R:
-					if trace.file_name != "" && !capture_text && (ctrl_down || super_down) && !ui_state.loading_config {
-						fmt.printf("attempting to load %s\n", trace.file_name)
-						// FIXME(will) it would be nice if this could be a function
-						// but it can't without deeper fixes to the the data flow
-						start_trace = strings.clone(trace.file_name)
-						// NOTE(will) maybe necessary?
-						ui_state.ui_mode = .TraceView
-					}
-				}
-			case .KEYUP:
-				alt_down   = (event.key.keysym.mod & SDL.KMOD_ALT) != SDL.Keymod{}
-				shift_down = (event.key.keysym.mod & SDL.KMOD_SHIFT) != SDL.Keymod{}
-				ctrl_down  = (event.key.keysym.mod & SDL.KMOD_CTRL) != SDL.Keymod{}
-				super_down = (event.key.keysym.mod & SDL.KMOD_GUI) != SDL.Keymod{}
-			case .MOUSEMOTION:
-				x := f64(event.motion.x)
-				y := f64(event.motion.y)
-				if dpi_hack_val > 0 {
-					x /= dpr
-					y /= dpr
-				}
-				mouse_moved(x, y)
-			case .MOUSEBUTTONDOWN:
-				switch event.button.button {
-				case SDL.BUTTON_LEFT:
-					is_mouse_down = true
+						case .Backspace:
+							if capture_text {
+								new_cursor := step_left_rune(selected_box.b.buf[:], selected_box.cursor)
+								remove_range(&selected_box.b.buf, new_cursor, selected_box.cursor)
+								selected_box.cursor = new_cursor
+							}
+						case .Tab:
+							if capture_text {
+								selected_box.focus = false
+								if shift_down {
+									selected_box = selected_box.prev
+								} else {
+									selected_box = selected_box.next
+								}
+								selected_box.focus = true
+							}
+						case .Left:
+							if capture_text {
+								selected_box.cursor = step_left_rune(selected_box.b.buf[:], selected_box.cursor)
+							}
+						case .Right:
+							if capture_text {
+								selected_box.cursor = step_right_rune(selected_box.b.buf[:], selected_box.cursor)
+							}
+						case .Up:
+							if capture_text {
+								selected_box.cursor = 0
+							}
+						case .Down:
+							if capture_text {
+								selected_box.cursor = len(selected_box.b.buf)
+							}
+						case .V:
+							if capture_text && (ctrl_down || super_down) {
+								path := get_clipboard()
+								strings.builder_reset(&selected_box.b)
+								strings.write_string(&selected_box.b, path)
+								selected_box.cursor = len(selected_box.b.buf)
+							}
+						case .R: {
+							if trace.file_name != "" && !capture_text &&
+							   (ctrl_down || super_down) && !ui_state.loading_config {
 
-					x := f64(event.button.x)
-					y := f64(event.button.y)
-					if dpi_hack_val > 0 {
-						x /= dpr
-						y /= dpr
-					}
-					mouse_down(x, y)
-				}
-			case .MOUSEBUTTONUP:
-				switch event.button.button {
-				case SDL.BUTTON_LEFT:
-					x := f64(event.button.x)
-					y := f64(event.button.y)
-					if dpi_hack_val > 0 {
-						x /= dpr
-						y /= dpr
-					}
-					mouse_up(x, y)
-				}
-			case .MOUSEWHEEL:
-				mouse_scroll(f64(event.wheel.y))
-			case .WINDOWEVENT:
-				#partial switch event.window.event {
-				case .RESIZED:
-					width = f64(event.window.data1)
-					height = f64(event.window.data2)
-					if dpi_hack_val < 0 {
-						width *= dpr
-						height *= dpr
+								fmt.printf("attempting to load %s\n", trace.file_name)
+								// FIXME(will) it would be nice if this could be a function
+								// but it can't without deeper fixes to the the data flow
+								start_trace = strings.clone(trace.file_name)
+								// NOTE(will) maybe necessary?
+								ui_state.ui_mode = .TraceView
+							}
+						}
 					}
 				}
-			case .DROPFILE:
-				start_trace = strings.clone_from_cstring(event.drop.file)
-				ui_state.ui_mode = .TraceView
-				fmt.printf("start trace: %s\n", start_trace)
-				SDL.free(rawptr(event.drop.file))
-			case .DROPTEXT:
-				SDL.free(rawptr(event.drop.file))
+				case .KeyUp: {
+					#partial switch ev.key {
+						case .LeftShift:    shift_down = false
+						case .RightShift:   shift_down = false
+						case .LeftControl:  ctrl_down = false
+						case .RightControl: ctrl_down = false
+						case .LeftAlt:      alt_down = false
+						case .RightAlt:     alt_down = false
+						case .LeftSuper:    super_down = false
+						case .RightSuper:   super_down = false
+					}
+				}
+				case .Resize: {
+					width = ev.w
+					height = ev.h
+				}
+				case .FileDropped: {
+					start_trace = ev.str
+					ui_state.ui_mode = .TraceView
+					fmt.printf("start trace: %s\n", start_trace)
+				}
+			}
+		}
+
+		/*
+			Not sure how to handle this yet...
 			case .TEXTINPUT:
 				if capture_text {
 					cur_str := strings.to_string(selected_box.b)
@@ -624,7 +527,7 @@ main :: proc() {
 					}
 				}
 			}
-		}
+		*/
 
 		when SELF_TRACE {
 			spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "frame")
@@ -632,16 +535,9 @@ main :: proc() {
 
 		if should_toggle_fullscreen {
 			fullscreen = !fullscreen
-			if fullscreen {
-				SDL.SetWindowFullscreen(window, SDL.WINDOW_FULLSCREEN_DESKTOP)
-			} else {
-				SDL.SetWindowFullscreen(window, SDL.WindowFlags{})
-			}
-			iw : i32
-			ih : i32
-			SDL.GetWindowSize(window, &iw, &ih)
-			width = f64(iw)
-			height = f64(ih)
+			w, h := set_fullscreen(&gfx, fullscreen)
+			width = f64(w)
+			height = f64(h)
 		}
 
 		gl.Viewport(0, 0, i32(width), i32(height))
@@ -710,8 +606,8 @@ main :: proc() {
 		ui_state.padded_flamegraph_rect.h -= em
 
 		#partial switch ui_state.ui_mode {
-			case .MainMenu: draw_main_menu(&rects, trace, &ui_state, dt, window)
-			case .TraceView: draw_trace(&rects, &text_rects, trace, &ui_state, &global_pool, dt, window)
+			case .MainMenu: draw_main_menu(&gfx, &rects, trace, &ui_state, dt)
+			case .TraceView: draw_trace(&gfx, &rects, &text_rects, trace, &ui_state, &global_pool, dt)
 		}
 
 		// reset the cursor if we're not over a selectable thing
@@ -736,7 +632,7 @@ main :: proc() {
 		}
 
 		gl.Finish()
-		SDL.GL_SwapWindow(window)
+		swap_buffers(&gfx)
 		gl.Finish()
 	}
 

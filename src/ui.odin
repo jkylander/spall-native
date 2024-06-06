@@ -11,8 +11,6 @@ import "core:os"
 
 import "core:prof/spall"
 
-import SDL "vendor:sdl2"
-
 to_world_x :: proc(cam: Camera, x: f64) -> f64 {
 	return (x - cam.pan.x) / cam.current_scale
 }
@@ -2307,7 +2305,7 @@ draw_errorbox :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UISta
 	draw_text(rects, trace.error_message, Vec2{(error_rect.x + (error_rect.w / 2)) - (msg_width / 2), (error_rect.y + (error_rect.h / 2)) - (msg_height / 2)}, .PSize, .DefaultFont, text_color)
 }
 
-draw_trace :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, ui_state: ^UIState, global_pool: ^Pool, dt: f64, window: ^SDL.Window) {
+draw_trace :: proc(gfx: ^GFX_Context, rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, trace: ^Trace, ui_state: ^UIState, global_pool: ^Pool, dt: f64) {
 		rect_tooltip_rect = empty_event
 		rect_tooltip_pos = Vec2{}
 		rendered_rect_tooltip = false
@@ -2377,7 +2375,7 @@ draw_trace :: proc(rects: ^[dynamic]DrawRect, text_rects: ^[dynamic]TextRect, tr
 
 			if trace.file_name != "" {
 				name := fmt.ctprintf("%s - spall beta 0.2", trace.base_name)
-				SDL.SetWindowTitle(window, name)
+				set_window_title(gfx, name)
 			}
 			ui_state.post_loading = false
 		}
@@ -2473,7 +2471,7 @@ draw_textbox :: proc(rects: ^[dynamic]DrawRect, pos: Rect, hint_text: string, st
 	}
 }
 
-draw_main_menu :: proc(rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState, dt: f64, window: ^SDL.Window) {
+draw_main_menu :: proc(gfx: ^GFX_Context, rects: ^[dynamic]DrawRect, trace: ^Trace, ui_state: ^UIState, dt: f64) {
 	draw_reduced_header(rects, trace, ui_state)
 
 	menu_rect := Rect{0, ui_state.header_rect.h, ui_state.width, ui_state.height - ui_state.header_rect.h}

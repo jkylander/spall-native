@@ -7,10 +7,72 @@ import "core:container/lru"
 import "core:time"
 import "core:unicode/utf8"
 
-import SDL "vendor:sdl2"
 import gl "vendor:OpenGL"
 
 import stbtt "vendor:stb/truetype"
+
+PlatformEventType :: enum {
+	None,
+	MouseUp,
+	MouseDown,
+	MouseMoved,
+	Scroll,
+	Zoom,
+	Rotate,
+	KeyDown,
+	KeyUp,
+	Resize,
+	FileDropped,
+	More,
+	Exit,
+}
+
+KeyType :: enum {
+	None,
+
+	A, B, C, D, E, F, G, H, I, J, K, L, M,
+	N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+	_0, _1, _2, _3, _4, _5, _6, _7, _8, _9,
+	F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, 
+	F12, F13, F14, F15, F16, F17, F18, F19, F20,
+
+	LeftShift, LeftSuper, LeftControl, LeftAlt, 
+	RightShift, RightSuper, RightControl, RightAlt,
+
+	Function, Escape, CapsLock,
+	Space, Tab, Return, Backspace, Delete, FwdDelete,
+
+	PageUp, PageDown, Home, End,
+	Quote, Minus, Equal, LeftBracket, RightBracket, Comma, Period, Backslash, Slash, Semicolon, Grave,
+
+	Keypad_1, Keypad_2, Keypad_3, Keypad_4, Keypad_5, Keypad_6, Keypad_7, Keypad_8, Keypad_9, Keypad_0,
+	Keypad_Period, Keypad_Multiply, Keypad_Plus, Keypad_Clear, Keypad_Divide, Keypad_Enter, Keypad_Minus, Keypad_Equal,
+	Up, Down, Left, Right,
+
+	VolumeUp, VolumeDown, Mute, Help,
+}
+
+MouseButtonType :: enum {
+	Left,
+	Right,
+	Middle,
+	None,
+}
+
+PlatformEvent :: struct {
+	type: PlatformEventType,
+
+	x: f64,
+	y: f64,
+	z: f64,
+
+	w: f64,
+	h: f64,
+
+	key: KeyType,
+	mouse: MouseButtonType,
+	str: string,
+}
 
 mouse_down :: proc(x, y: f64) {
 	is_mouse_down = true
@@ -103,20 +165,6 @@ draw_rect_inline :: proc(rects: ^[dynamic]DrawRect, rect: Rect, width: f64, colo
 	draw_line(rects, Vec2{x2, y1}, Vec2{x2, y2}, width, color)
 	draw_line(rects, Vec2{x1, y2}, Vec2{x2, y2}, width, color)
 }
-
-set_cursor :: proc(type: string) {
-	switch type {
-	case "auto":    SDL.SetCursor(default_cursor)
-	case "pointer": SDL.SetCursor(pointer_cursor)
-	case "text":    SDL.SetCursor(text_cursor)
-	}
-	is_hovering = true
-}
-reset_cursor :: proc() { 
-	set_cursor("auto") 
-	is_hovering = false
-}
-
 
 get_text_height :: proc(scale: FontSize, font: FontType) -> f64 { 
 	#partial switch scale {
@@ -304,11 +352,3 @@ flush_rects :: proc(rects: ^[dynamic]DrawRect) {
 get_system_color :: proc() -> bool { return false }
 get_session_storage :: proc(key: string) { }
 set_session_storage :: proc(key, val: string) { }
-
-get_clipboard :: proc() -> string {
-	return string(SDL.GetClipboardText())
-}
-set_clipboard :: proc(text: string) {
-	cstr_text := strings.clone_to_cstring(text, context.temp_allocator)
-	SDL.SetClipboardText(cstr_text)
-}
