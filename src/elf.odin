@@ -668,25 +668,24 @@ load_elf :: proc(trace: ^Trace, binary_blob: []u8) -> bool {
 
 		section_name := string(cstring(raw_data(section_name_blob)))
 		switch section_name {
-			case ".symtab": {
-				sym_buffer = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".strtab": {
-				str_buffer = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_line": {
-				sections.line = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_str": {
-				sections.debug_str = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_str_offsets": {
-				sections.str_offsets = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_line_str": {
-				sections.line_str = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_info": {
-				sections.info = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_abbrev": {
-				sections.abbrev = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			} case ".debug_addr": {
-				sections.addr = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
-			}
+		case ".symtab":
+			sym_buffer = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".strtab":
+			str_buffer = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_line":
+			sections.line = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_str":
+			sections.debug_str = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_str_offsets":
+			sections.str_offsets = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_line_str":
+			sections.line_str = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_info":
+			sections.info = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_abbrev":
+			sections.abbrev = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
+		case ".debug_addr":
+			sections.addr = create_subbuffer(binary_blob, section_hdr.offset, section_hdr.size) or_return
 		}
 	}
 

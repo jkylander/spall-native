@@ -437,103 +437,103 @@ Sections :: struct {
 parse_line_header :: proc(ctx: ^DWARF_Context, blob: []u8) -> (DWARF_Line_Header, int, bool) {
 	common_hdr := DWARF_Line_Header{}
 	switch ctx.version {
-		case 5:
-			hdr, ok := slice_to_type(blob, DWARF32_V5_Line_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.header_length         = hdr.header_length
-			common_hdr.address_size          = hdr.address_size
-			common_hdr.segment_selector_size = hdr.segment_selector_size
-			common_hdr.min_inst_length       = hdr.min_inst_length
-			common_hdr.max_ops_per_inst      = hdr.max_ops_per_inst
-			common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
-			common_hdr.line_base             = hdr.line_base
-			common_hdr.line_range            = hdr.line_range
-			common_hdr.opcode_base           = hdr.opcode_base
-
-			return common_hdr, size_of(hdr), true
-		case 4:
-			hdr, ok := slice_to_type(blob, DWARF32_V4_Line_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.header_length         = hdr.header_length
-			common_hdr.address_size          = 4
-			common_hdr.segment_selector_size = 0
-			common_hdr.min_inst_length       = hdr.min_inst_length
-			common_hdr.max_ops_per_inst      = hdr.max_ops_per_inst
-			common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
-			common_hdr.line_base             = hdr.line_base
-			common_hdr.line_range            = hdr.line_range
-			common_hdr.opcode_base           = hdr.opcode_base
-
-			return common_hdr, size_of(hdr), true
-		case 3:
-			hdr, ok := slice_to_type(blob, DWARF32_V3_Line_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.header_length         = hdr.header_length
-			common_hdr.address_size          = 4
-			common_hdr.segment_selector_size = 0
-			common_hdr.min_inst_length       = hdr.min_inst_length
-			common_hdr.max_ops_per_inst      = 0
-			common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
-			common_hdr.line_base             = hdr.line_base
-			common_hdr.line_range            = hdr.line_range
-			common_hdr.opcode_base           = hdr.opcode_base
-
-			return common_hdr, size_of(hdr), true
-		case:
+	case 5:
+		hdr, ok := slice_to_type(blob, DWARF32_V5_Line_Header)
+		if !ok {
 			return {}, 0, false
+		}
+
+		common_hdr.header_length         = hdr.header_length
+		common_hdr.address_size          = hdr.address_size
+		common_hdr.segment_selector_size = hdr.segment_selector_size
+		common_hdr.min_inst_length       = hdr.min_inst_length
+		common_hdr.max_ops_per_inst      = hdr.max_ops_per_inst
+		common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
+		common_hdr.line_base             = hdr.line_base
+		common_hdr.line_range            = hdr.line_range
+		common_hdr.opcode_base           = hdr.opcode_base
+
+		return common_hdr, size_of(hdr), true
+	case 4:
+		hdr, ok := slice_to_type(blob, DWARF32_V4_Line_Header)
+		if !ok {
+			return {}, 0, false
+		}
+
+		common_hdr.header_length         = hdr.header_length
+		common_hdr.address_size          = 4
+		common_hdr.segment_selector_size = 0
+		common_hdr.min_inst_length       = hdr.min_inst_length
+		common_hdr.max_ops_per_inst      = hdr.max_ops_per_inst
+		common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
+		common_hdr.line_base             = hdr.line_base
+		common_hdr.line_range            = hdr.line_range
+		common_hdr.opcode_base           = hdr.opcode_base
+
+		return common_hdr, size_of(hdr), true
+	case 3:
+		hdr, ok := slice_to_type(blob, DWARF32_V3_Line_Header)
+		if !ok {
+			return {}, 0, false
+		}
+
+		common_hdr.header_length         = hdr.header_length
+		common_hdr.address_size          = 4
+		common_hdr.segment_selector_size = 0
+		common_hdr.min_inst_length       = hdr.min_inst_length
+		common_hdr.max_ops_per_inst      = 0
+		common_hdr.default_is_stmt       = hdr.default_is_stmt == 1
+		common_hdr.line_base             = hdr.line_base
+		common_hdr.line_range            = hdr.line_range
+		common_hdr.opcode_base           = hdr.opcode_base
+
+		return common_hdr, size_of(hdr), true
+	case:
+		return {}, 0, false
 	}
 }
 
 parse_cu_header :: proc(ctx: ^DWARF_Context, blob: []u8) -> (DWARF_CU_Header, int, bool) {
 	common_hdr := DWARF_CU_Header{}
 	switch ctx.version {
-		case 5:
-			hdr, ok := slice_to_type(blob, DWARF32_V5_CU_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.unit_type = Dw_Unit_Type(hdr.unit_type)
-			common_hdr.address_size = hdr.address_size
-			common_hdr.abbrev_offset = hdr.abbrev_offset
-
-			if common_hdr.unit_type != .compile {
-				fmt.printf("Extra CU types not handled yet!\n")
-				return {}, 0, false
-			}
-
-			return common_hdr, size_of(hdr), true
-		case 4:
-			hdr, ok := slice_to_type(blob, DWARF32_V4_CU_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.address_size = hdr.address_size
-			common_hdr.abbrev_offset = hdr.abbrev_offset
-
-			return common_hdr, size_of(hdr), true
-		case 3:
-			hdr, ok := slice_to_type(blob, DWARF32_V3_CU_Header)
-			if !ok {
-				return {}, 0, false
-			}
-
-			common_hdr.address_size = hdr.address_size
-			common_hdr.abbrev_offset = hdr.abbrev_offset
-
-			return common_hdr, size_of(hdr), true
-		case:
+	case 5:
+		hdr, ok := slice_to_type(blob, DWARF32_V5_CU_Header)
+		if !ok {
 			return {}, 0, false
+		}
+
+		common_hdr.unit_type = Dw_Unit_Type(hdr.unit_type)
+		common_hdr.address_size = hdr.address_size
+		common_hdr.abbrev_offset = hdr.abbrev_offset
+
+		if common_hdr.unit_type != .compile {
+			fmt.printf("Extra CU types not handled yet!\n")
+			return {}, 0, false
+		}
+
+		return common_hdr, size_of(hdr), true
+	case 4:
+		hdr, ok := slice_to_type(blob, DWARF32_V4_CU_Header)
+		if !ok {
+			return {}, 0, false
+		}
+
+		common_hdr.address_size = hdr.address_size
+		common_hdr.abbrev_offset = hdr.abbrev_offset
+
+		return common_hdr, size_of(hdr), true
+	case 3:
+		hdr, ok := slice_to_type(blob, DWARF32_V3_CU_Header)
+		if !ok {
+			return {}, 0, false
+		}
+
+		common_hdr.address_size = hdr.address_size
+		common_hdr.abbrev_offset = hdr.abbrev_offset
+
+		return common_hdr, size_of(hdr), true
+	case:
+		return {}, 0, false
 	}
 }
 

@@ -230,8 +230,8 @@ get_next_event :: proc(gfx: ^GFX_Context, wait: bool) -> PlatformEvent {
 		case .MOUSEBUTTONUP: {
 			type := MouseButtonType.None
 			switch event.button.button {
-				case SDL.BUTTON_LEFT: type = .Left
-				case SDL.BUTTON_RIGHT: type = .Right
+			case SDL.BUTTON_LEFT: type = .Left
+			case SDL.BUTTON_RIGHT: type = .Right
 			}
 			if type != .None {
 				x := f64(event.button.x)
@@ -247,8 +247,8 @@ get_next_event :: proc(gfx: ^GFX_Context, wait: bool) -> PlatformEvent {
 		case .MOUSEBUTTONDOWN: {
 			type := MouseButtonType.None
 			switch event.button.button {
-				case SDL.BUTTON_LEFT: type = .Left
-				case SDL.BUTTON_RIGHT: type = .Right
+			case SDL.BUTTON_LEFT: type = .Left
+			case SDL.BUTTON_RIGHT: type = .Right
 			}
 			if type != .None {
 				x := f64(event.button.x)

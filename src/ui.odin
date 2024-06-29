@@ -326,13 +326,13 @@ draw_reduced_header :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState
 		color_text : string
 		tool_text : string
 		switch colormode {
-			case .Auto:
+		case .Auto:
 			tool_text = "switch to dark colors"
 			color_text = "\uf042"
-			case .Dark:
+		case .Dark:
 			tool_text = "switch to light colors"
 			color_text = "\uf10c"
-			case .Light:
+		case .Light:
 			tool_text = "switch to auto colors"
 			color_text = "\uf111"
 		}
@@ -347,23 +347,23 @@ draw_reduced_header :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState
 
 			// rotate between auto, dark, and light
 			switch colormode {
-				case .Auto:
+			case .Auto:
 				new_colormode = .Dark
-				case .Dark:
+			case .Dark:
 				new_colormode = .Light
-				case .Light:
+			case .Light:
 				new_colormode = .Auto
 			}
 
 			switch new_colormode {
-				case .Auto:
+			case .Auto:
 				is_dark := get_system_color()
 				set_color_mode(true, is_dark)
 				set_session_storage("colormode", "auto")
-				case .Dark:
+			case .Dark:
 				set_color_mode(false, true)
 				set_session_storage("colormode", "dark")
-				case .Light:
+			case .Light:
 				set_color_mode(false, false)
 				set_session_storage("colormode", "light")
 			}
@@ -434,13 +434,13 @@ draw_header :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 		color_text : string
 		tool_text : string
 		switch colormode {
-			case .Auto:
+		case .Auto:
 			tool_text = "switch to dark colors"
 			color_text = "\uf042"
-			case .Dark:
+		case .Dark:
 			tool_text = "switch to light colors"
 			color_text = "\uf10c"
-			case .Light:
+		case .Light:
 			tool_text = "switch to auto colors"
 			color_text = "\uf111"
 		}
@@ -455,23 +455,23 @@ draw_header :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 
 			// rotate between auto, dark, and light
 			switch colormode {
-				case .Auto:
+			case .Auto:
 				new_colormode = .Dark
-				case .Dark:
+			case .Dark:
 				new_colormode = .Light
-				case .Light:
+			case .Light:
 				new_colormode = .Auto
 			}
 
 			switch new_colormode {
-				case .Auto:
+			case .Auto:
 				is_dark := get_system_color()
 				set_color_mode(true, is_dark)
 				set_session_storage("colormode", "auto")
-				case .Dark:
+			case .Dark:
 				set_color_mode(false, true)
 				set_session_storage("colormode", "dark")
-				case .Light:
+			case .Light:
 				set_color_mode(false, false)
 				set_session_storage("colormode", "light")
 			}
@@ -1898,7 +1898,7 @@ process_multiselect :: proc(gfx: ^GFX_Context, trace: ^Trace, pan_delta: Vec2, d
 sort_stats :: proc(trace: ^Trace) {
 	less: proc(a, b: StatEntry) -> bool
 	switch stat_sort_type {
-		case .SelfTime:
+	case .SelfTime:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.self_time > b.val.self_time
@@ -1906,7 +1906,7 @@ sort_stats :: proc(trace: ^Trace) {
 				return a.val.self_time < b.val.self_time
 			}
 		}
-		case .TotalTime:
+	case .TotalTime:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.total_time > b.val.total_time
@@ -1914,7 +1914,7 @@ sort_stats :: proc(trace: ^Trace) {
 				return a.val.total_time < b.val.total_time
 			}
 		}
-		case .MinTime:
+	case .MinTime:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.min_time > b.val.min_time
@@ -1922,7 +1922,7 @@ sort_stats :: proc(trace: ^Trace) {
 				return a.val.min_time < b.val.min_time
 			}
 		}
-		case .AvgTime:
+	case .AvgTime:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.avg_time > b.val.avg_time
@@ -1930,7 +1930,7 @@ sort_stats :: proc(trace: ^Trace) {
 				return a.val.avg_time < b.val.avg_time
 			}
 		}
-		case .MaxTime:
+	case .MaxTime:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.max_time > b.val.max_time
@@ -1938,7 +1938,7 @@ sort_stats :: proc(trace: ^Trace) {
 				return a.val.max_time < b.val.max_time
 			}
 		}
-		case .Count:
+	case .Count:
 		less = proc(a, b: StatEntry) -> bool {
 			if stat_sort_descending {
 				return a.val.count > b.val.count

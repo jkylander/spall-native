@@ -597,8 +597,9 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		if hdr.version == 1 { 
 			file_type = .ManualStreamV1 
 			trace.stamp_scale *= 1000
+		} else if hdr.version == 2 {
+			file_type = .ManualStreamV2
 		}
-		else if hdr.version == 2 { file_type = .ManualStreamV2 }
 
 	} else if magic == spall_fmt.AUTO_MAGIC {
 		hdr, ok := slice_to_type(header_buffer[:], spall_fmt.Auto_Header)

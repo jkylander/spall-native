@@ -49,154 +49,154 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 
     i : i64 = 1
     switch type_tag {
-        case 0: // MicroBegin
-            dt_size     := i64(1 << ((0b00_11_00_00 & type_byte) >> 4))
-            addr_size   := i64(1 << ((0b00_00_11_00 & type_byte) >> 2))
-            caller_size := i64(1 <<  (0b00_00_00_11 & type_byte))
-            event_sz := 1 + dt_size + addr_size + caller_size
-            if chunk_pos(p) + event_sz > i64(len(chunk)) {
-                return .PartialRead
-            }
+	case 0: // MicroBegin
+		dt_size     := i64(1 << ((0b00_11_00_00 & type_byte) >> 4))
+		addr_size   := i64(1 << ((0b00_00_11_00 & type_byte) >> 2))
+		caller_size := i64(1 <<  (0b00_00_00_11 & type_byte))
+		event_sz := 1 + dt_size + addr_size + caller_size
+		if chunk_pos(p) + event_sz > i64(len(chunk)) {
+			return .PartialRead
+		}
 
-            dt       := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size));     i += dt_size
-            d_addr   := pull_uval(chunk[chunk_pos(p)+i:], int(addr_size));   i += addr_size
-            d_caller := pull_uval(chunk[chunk_pos(p)+i:], int(caller_size)); i += caller_size
+		dt       := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size));     i += dt_size
+		d_addr   := pull_uval(chunk[chunk_pos(p)+i:], int(addr_size));   i += addr_size
+		d_caller := pull_uval(chunk[chunk_pos(p)+i:], int(caller_size)); i += caller_size
 
-            current_time^ = current_time^ + i64(dt)
-            current_addr^ = current_addr^ ~ d_addr
+		current_time^ = current_time^ + i64(dt)
+		current_addr^ = current_addr^ ~ d_addr
 
-            id := current_addr^
-            timestamp := current_time^
+		id := current_addr^
+		timestamp := current_time^
 
-            if thread.max_time > timestamp {
-                post_error(trace, 
-                    "Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, addr: 0x%x, event_count: %d]", 
-                    0, thread.id, id, trace.event_count)
-                return .Failure
-            }
+		if thread.max_time > timestamp {
+			post_error(trace, 
+				"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, addr: 0x%x, event_count: %d]", 
+				0, thread.id, id, trace.event_count)
+			return .Failure
+		}
 
-            process.min_time = min(process.min_time, timestamp)
-            thread.min_time  = min(thread.min_time, timestamp)
-            thread.max_time  = timestamp
+		process.min_time = min(process.min_time, timestamp)
+		thread.min_time  = min(thread.min_time, timestamp)
+		thread.max_time  = timestamp
 
-            trace.total_min_time = min(trace.total_min_time, timestamp)
-            trace.total_max_time = max(trace.total_max_time, timestamp)
+		trace.total_min_time = min(trace.total_min_time, timestamp)
+		trace.total_max_time = max(trace.total_max_time, timestamp)
 
-            depth := &thread.depths[thread.current_depth]
-            thread.current_depth += 1
-            ev := add_event(&depth.events)
-            ev^ = Event{
-                has_addr = true,
-                id = id,
-                duration = -1,
-                timestamp = timestamp,
-            }
+		depth := &thread.depths[thread.current_depth]
+		thread.current_depth += 1
+		ev := add_event(&depth.events)
+		ev^ = Event{
+			has_addr = true,
+			id = id,
+			duration = -1,
+			timestamp = timestamp,
+		}
 
-            ev_idx := len(depth.events)-1
-            stack_push_back(&thread.bande_q, ev_idx)
-            trace.event_count += 1
+		ev_idx := len(depth.events)-1
+		stack_push_back(&thread.bande_q, ev_idx)
+		trace.event_count += 1
 
-            p.pos += event_sz
-            return .EventRead
-        case 1: // MicroEnd
-            dt_size := i64(1 << ((0b00_11_00_00 & type_byte) >> 4))
-            event_sz := 1 + dt_size
-            if chunk_pos(p) + event_sz > i64(len(chunk)) {
-                return .PartialRead
-            }
+		p.pos += event_sz
+		return .EventRead
+	case 1: // MicroEnd
+		dt_size := i64(1 << ((0b00_11_00_00 & type_byte) >> 4))
+		event_sz := 1 + dt_size
+		if chunk_pos(p) + event_sz > i64(len(chunk)) {
+			return .PartialRead
+		}
 
-            dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size)); i += dt_size
+		dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size)); i += dt_size
 
-            ts := current_time^ + i64(dt)
-            if thread.bande_q.len > 0 {
-                jev_idx := stack_pop_back(&thread.bande_q)
-                thread.current_depth -= 1
+		ts := current_time^ + i64(dt)
+		if thread.bande_q.len > 0 {
+			jev_idx := stack_pop_back(&thread.bande_q)
+			thread.current_depth -= 1
 
-                depth := &thread.depths[thread.current_depth]
-                jev := &depth.events[jev_idx]
-                jev.duration = ts - jev.timestamp
-                jev.self_time = jev.duration - jev.self_time
+			depth := &thread.depths[thread.current_depth]
+			jev := &depth.events[jev_idx]
+			jev.duration = ts - jev.timestamp
+			jev.self_time = jev.duration - jev.self_time
 
-                thread.max_time      = max(thread.max_time, jev.timestamp + jev.duration)
-                trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
+			thread.max_time      = max(thread.max_time, jev.timestamp + jev.duration)
+			trace.total_max_time = max(trace.total_max_time, jev.timestamp + jev.duration)
 
-                if thread.bande_q.len > 0 {
-                    parent_depth := &thread.depths[thread.current_depth - 1]
-                    parent_ev_idx := stack_peek_back(&thread.bande_q)
+			if thread.bande_q.len > 0 {
+				parent_depth := &thread.depths[thread.current_depth - 1]
+				parent_ev_idx := stack_peek_back(&thread.bande_q)
 
-                    pev := &parent_depth.events[parent_ev_idx]
-                    pev.self_time += jev.duration
-                }
-            }
-            
-            current_time^ = ts
-            p.pos += event_sz
-            return .EventRead
-        case 2: // Other Events
-            type := spall_fmt.Auto_Event_Type((0b00_11_00_00 & type_byte) >> 4)
-            #partial switch type {
-            case .Begin:
-                dt_size   := i64(1 << ((0b00_00_11_00 & type_byte) >> 2))
-                name_size := i64(1 << ((0b00_00_00_10 & type_byte) >> 1))
-                arg_size  := i64(1 << (0b00_00_00_01 & type_byte))
+				pev := &parent_depth.events[parent_ev_idx]
+				pev.self_time += jev.duration
+			}
+		}
+		
+		current_time^ = ts
+		p.pos += event_sz
+		return .EventRead
+	case 2: // Other Events
+		type := spall_fmt.Auto_Event_Type((0b00_11_00_00 & type_byte) >> 4)
+		#partial switch type {
+		case .Begin:
+			dt_size   := i64(1 << ((0b00_00_11_00 & type_byte) >> 2))
+			name_size := i64(1 << ((0b00_00_00_10 & type_byte) >> 1))
+			arg_size  := i64(1 << (0b00_00_00_01 & type_byte))
 
-                min_event_sz := 1 + dt_size + name_size + arg_size
-                if chunk_pos(p) + min_event_sz > i64(len(chunk)) {
-                    return .PartialRead
-                }
-                
-                i : i64 = 1
-                dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size));    i += dt_size
-                name_len := pull_uval(chunk[chunk_pos(p)+i:], int(name_size)); i += name_size
-                args_len := pull_uval(chunk[chunk_pos(p)+i:], int(arg_size));  i += arg_size
+			min_event_sz := 1 + dt_size + name_size + arg_size
+			if chunk_pos(p) + min_event_sz > i64(len(chunk)) {
+				return .PartialRead
+			}
+			
+			i : i64 = 1
+			dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size));    i += dt_size
+			name_len := pull_uval(chunk[chunk_pos(p)+i:], int(name_size)); i += name_size
+			args_len := pull_uval(chunk[chunk_pos(p)+i:], int(arg_size));  i += arg_size
 
-                event_tail := i64(name_len) + i64(args_len)
-                if (chunk_pos(p) + min_event_sz + event_tail) > i64(len(chunk)) {
-                    return .PartialRead
-                }
+			event_tail := i64(name_len) + i64(args_len)
+			if (chunk_pos(p) + min_event_sz + event_tail) > i64(len(chunk)) {
+				return .PartialRead
+			}
 
-                name_str := string(data_start[i:i+i64(name_len)]); i += i64(name_len)
-                args_str := string(data_start[i:i+i64(args_len)]); i += i64(args_len)
-                id   := in_get(&trace.intern, &trace.string_block, name_str)
-                args := in_get(&trace.intern, &trace.string_block, args_str)
+			name_str := string(data_start[i:i+i64(name_len)]); i += i64(name_len)
+			args_str := string(data_start[i:i+i64(args_len)]); i += i64(args_len)
+			id   := in_get(&trace.intern, &trace.string_block, name_str)
+			args := in_get(&trace.intern, &trace.string_block, args_str)
 
-                current_time^ = current_time^ + i64(dt)
-                timestamp := current_time^
+			current_time^ = current_time^ + i64(dt)
+			timestamp := current_time^
 
-                if thread.max_time > timestamp {
-                    post_error(trace, 
-                        "Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event_count: %d]", 
-                        0, thread.id, name_str, trace.event_count)
-                    return .Failure
-                }
+			if thread.max_time > timestamp {
+				post_error(trace, 
+					"Woah, time-travel? You just had a begin event that started before a previous one; [pid: %d, tid: %d, name: %s, event_count: %d]", 
+					0, thread.id, name_str, trace.event_count)
+				return .Failure
+			}
 
-                process.min_time = min(process.min_time, timestamp)
-                thread.min_time  = min(thread.min_time, timestamp)
-                thread.max_time  = timestamp
+			process.min_time = min(process.min_time, timestamp)
+			thread.min_time  = min(thread.min_time, timestamp)
+			thread.max_time  = timestamp
 
-                trace.total_min_time = min(trace.total_min_time, timestamp)
-                trace.total_max_time = max(trace.total_max_time, timestamp)
+			trace.total_min_time = min(trace.total_min_time, timestamp)
+			trace.total_max_time = max(trace.total_max_time, timestamp)
 
-                depth := &thread.depths[thread.current_depth]
-                thread.current_depth += 1
-                ev := add_event(&depth.events)
-                ev^ = Event{
-                    id = id,
-                    args = args,
-                    duration = -1,
-                    timestamp = timestamp,
-                }
+			depth := &thread.depths[thread.current_depth]
+			thread.current_depth += 1
+			ev := add_event(&depth.events)
+			ev^ = Event{
+				id = id,
+				args = args,
+				duration = -1,
+				timestamp = timestamp,
+			}
 
-                ev_idx := len(depth.events)-1
-                stack_push_back(&thread.bande_q, ev_idx)
-                trace.event_count += 1
+			ev_idx := len(depth.events)-1
+			stack_push_back(&thread.bande_q, ev_idx)
+			trace.event_count += 1
 
-                p.pos += i
-                return .EventRead
-            }
-        case:
-            post_error(trace, "Invalid event type: %d in file!", data_start[0])
-            return .Failure
+			p.pos += i
+			return .EventRead
+		}
+	case:
+		post_error(trace, "Invalid event type: %d in file!", data_start[0])
+		return .Failure
     }
 
 	return .PartialRead
