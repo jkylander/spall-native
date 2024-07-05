@@ -113,103 +113,103 @@ demangle_symbol :: proc(name: string, tmp_buffer: []u8) -> (string, bool) {
 
 _normalize_key :: proc(v: xlib.KeySym) -> KeyType {
 	#partial switch v {
-		case .XK_a: return .A
-		case .XK_b: return .B
-		case .XK_c: return .C
-		case .XK_d: return .D
-		case .XK_e: return .E
-		case .XK_f: return .F
-		case .XK_g: return .G
-		case .XK_h: return .H
-		case .XK_i: return .I
-		case .XK_j: return .J
-		case .XK_k: return .K
-		case .XK_l: return .L
-		case .XK_m: return .M
-		case .XK_n: return .N
-		case .XK_o: return .O
-		case .XK_p: return .P
-		case .XK_q: return .Q
-		case .XK_r: return .R
-		case .XK_s: return .S
-		case .XK_t: return .T
-		case .XK_u: return .U
-		case .XK_v: return .V
-		case .XK_w: return .W
-		case .XK_x: return .X
-		case .XK_y: return .Y
-		case .XK_z: return .Z
+	case .XK_a: return .A
+	case .XK_b: return .B
+	case .XK_c: return .C
+	case .XK_d: return .D
+	case .XK_e: return .E
+	case .XK_f: return .F
+	case .XK_g: return .G
+	case .XK_h: return .H
+	case .XK_i: return .I
+	case .XK_j: return .J
+	case .XK_k: return .K
+	case .XK_l: return .L
+	case .XK_m: return .M
+	case .XK_n: return .N
+	case .XK_o: return .O
+	case .XK_p: return .P
+	case .XK_q: return .Q
+	case .XK_r: return .R
+	case .XK_s: return .S
+	case .XK_t: return .T
+	case .XK_u: return .U
+	case .XK_v: return .V
+	case .XK_w: return .W
+	case .XK_x: return .X
+	case .XK_y: return .Y
+	case .XK_z: return .Z
 
-		case .XK_0: return ._0
-		case .XK_1: return ._1
-		case .XK_2: return ._2
-		case .XK_3: return ._3
-		case .XK_4: return ._4
-		case .XK_5: return ._5
-		case .XK_6: return ._6
-		case .XK_7: return ._7
-		case .XK_8: return ._8
-		case .XK_9: return ._9
+	case .XK_0: return ._0
+	case .XK_1: return ._1
+	case .XK_2: return ._2
+	case .XK_3: return ._3
+	case .XK_4: return ._4
+	case .XK_5: return ._5
+	case .XK_6: return ._6
+	case .XK_7: return ._7
+	case .XK_8: return ._8
+	case .XK_9: return ._9
 
-		case .XK_equal: return .Equal
-		case .XK_minus: return .Minus
-		case .XK_bracketright: return .RightBracket
-		case .XK_bracketleft: return .LeftBracket
-		case .XK_leftsinglequotemark: return .Quote
-		case .XK_semicolon:  return .Semicolon
-		case .XK_backslash:  return .Backslash
-		case .XK_comma:      return .Comma
-		case .XK_slash:      return .Slash
-		case .XK_period:     return .Period
-		case .XK_grave:      return .Grave
-		case .XK_Return:     return .Return
-		case .XK_Tab:        return .Tab
-		case .XK_space:      return .Space
-		case .XK_BackSpace:  return .Delete
-		case .XK_Escape:     return .Escape
-		case .XK_Caps_Lock:  return .CapsLock
-		case .XK_function:   return .Function
+	case .XK_equal: return .Equal
+	case .XK_minus: return .Minus
+	case .XK_bracketright: return .RightBracket
+	case .XK_bracketleft: return .LeftBracket
+	case .XK_leftsinglequotemark: return .Quote
+	case .XK_semicolon:  return .Semicolon
+	case .XK_backslash:  return .Backslash
+	case .XK_comma:      return .Comma
+	case .XK_slash:      return .Slash
+	case .XK_period:     return .Period
+	case .XK_grave:      return .Grave
+	case .XK_Return:     return .Return
+	case .XK_Tab:        return .Tab
+	case .XK_space:      return .Space
+	case .XK_BackSpace:  return .Delete
+	case .XK_Escape:     return .Escape
+	case .XK_Caps_Lock:  return .CapsLock
+	case .XK_function:   return .Function
 
-		case .XK_Super_R:    return .RightSuper
-		case .XK_Super_L:    return .LeftSuper
-		case .XK_Shift_R:    return .RightShift
-		case .XK_Shift_L:    return .LeftShift
-		case .XK_Alt_R:      return .RightAlt
-		case .XK_Alt_L:      return .LeftAlt
-		case .XK_Control_R:  return .RightControl
-		case .XK_Control_L:  return .LeftControl
+	case .XK_Super_R:    return .RightSuper
+	case .XK_Super_L:    return .LeftSuper
+	case .XK_Shift_R:    return .RightShift
+	case .XK_Shift_L:    return .LeftShift
+	case .XK_Alt_R:      return .RightAlt
+	case .XK_Alt_L:      return .LeftAlt
+	case .XK_Control_R:  return .RightControl
+	case .XK_Control_L:  return .LeftControl
 
-		case .XK_F1:         return .F1
-		case .XK_F2:         return .F2
-		case .XK_F3:         return .F3
-		case .XK_F4:         return .F4
-		case .XK_F5:         return .F5
-		case .XK_F6:         return .F6
-		case .XK_F7:         return .F7
-		case .XK_F8:         return .F8
-		case .XK_F9:         return .F9
-		case .XK_F10:        return .F10
-		case .XK_F11:        return .F11
-		case .XK_F12:        return .F12
-		case .XK_F13:        return .F13
-		case .XK_F14:        return .F14
-		case .XK_F15:        return .F16
-		case .XK_F16:        return .F16
-		case .XK_F17:        return .F17
-		case .XK_F18:        return .F18
-		case .XK_F19:        return .F19
-		case .XK_F20:        return .F20
+	case .XK_F1:         return .F1
+	case .XK_F2:         return .F2
+	case .XK_F3:         return .F3
+	case .XK_F4:         return .F4
+	case .XK_F5:         return .F5
+	case .XK_F6:         return .F6
+	case .XK_F7:         return .F7
+	case .XK_F8:         return .F8
+	case .XK_F9:         return .F9
+	case .XK_F10:        return .F10
+	case .XK_F11:        return .F11
+	case .XK_F12:        return .F12
+	case .XK_F13:        return .F13
+	case .XK_F14:        return .F14
+	case .XK_F15:        return .F16
+	case .XK_F16:        return .F16
+	case .XK_F17:        return .F17
+	case .XK_F18:        return .F18
+	case .XK_F19:        return .F19
+	case .XK_F20:        return .F20
 
-		case .XK_Home:      return .Home
-		case .XK_Page_Up:   return .PageUp
-		case .XK_Page_Down: return .PageDown
-		case .XK_Delete:    return .FwdDelete
-		case .XK_End:       return .End
+	case .XK_Home:      return .Home
+	case .XK_Page_Up:   return .PageUp
+	case .XK_Page_Down: return .PageDown
+	case .XK_Delete:    return .FwdDelete
+	case .XK_End:       return .End
 
-		case .XK_Left:  return .Left
-		case .XK_Right: return .Right
-		case .XK_Down:  return .Down
-		case .XK_Up:    return .Up
+	case .XK_Left:  return .Left
+	case .XK_Right: return .Right
+	case .XK_Down:  return .Down
+	case .XK_Up:    return .Up
 	}
 
 	return .None
@@ -503,182 +503,179 @@ get_next_event :: proc(gfx: ^GFX_Context, wait: bool) -> PlatformEvent {
 	event: xlib.XEvent
 	xlib.NextEvent(gfx.x_display, &event)
 	#partial switch event.type {
-		case .ClientMessage: {
-			switch event.xclient.message_type {
-				case gfx.wm_protos: {
-					protocol := event.xclient.data.l[0]
-					if xlib.Atom(protocol) == gfx.delete_win {
-						return PlatformEvent{type = .Exit}
-					}
-				}
-				case gfx.dnd_enter: {
-					// New drag-and-drop event just entered the window
-					src_win := xlib.Window(event.xclient.data.l[0])
-					is_list := 0 != (event.xclient.data.l[1] & 0b1)
-					version := event.xclient.data.l[1] >> 24
-					gfx.dnd_format = 0
-
-					fmts: rawptr
-					count: uint
-					if is_list {
-						count = _x11_get_window_property(gfx, src_win, gfx.dnd_type_list, xlib.XA_ATOM, &fmts)
-					} else {
-						count = 3
-						fmts = rawptr(&event.xclient.data.l[2])
-					}
-
-					if fmts != nil {
-						raw_fmts_arr := slice.bytes_from_ptr(fmts, size_of(xlib.Atom))
-						fmts_arr := transmute([]xlib.Atom)raw_fmts_arr
-						for format in fmts_arr {
-							if format == gfx.text_uri_list {
-								gfx.dnd_format = format
-								break
-							}
-						}
-					}
-
-					if is_list && fmts != nil {
-						xlib.Free(fmts)
-					}
-
-					gfx.dnd_src_window = src_win
-					gfx.dnd_version = version
-				}
-				case gfx.dnd_position: {
-					// Confirm Position Update
-					reply := xlib.XEvent{}
-					reply.type = .ClientMessage
-					reply.xclient.window = gfx.dnd_src_window
-					reply.xclient.message_type = gfx.dnd_status
-					reply.xclient.format = 32
-					reply.xclient.data.l[0] = int(gfx.window)
-					if gfx.dnd_format != 0 {
-						reply.xclient.data.l[1] = 1
-						reply.xclient.data.l[4] = int(gfx.dnd_action_copy)
-					}
-					xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
-					xlib.Flush(gfx.x_display)
-				}
-				case gfx.dnd_drop: {
-					time := xlib.Time(event.xclient.data.l[2])
-					xlib.ConvertSelection(gfx.x_display, gfx.dnd_selection, gfx.text_uri_list, gfx.dnd_selection, gfx.window, time)
-
-					// Confirm Drop
-					reply := xlib.XEvent{}
-					reply.type = .ClientMessage
-					reply.xclient.window = gfx.dnd_src_window
-					reply.xclient.message_type = gfx.dnd_finished
-					reply.xclient.format = 32
-					reply.xclient.data.l[0] = int(gfx.window)
-					reply.xclient.data.l[1] = 0
-					reply.xclient.data.l[2] = 0
-					xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
-					xlib.Flush(gfx.x_display)
-				}
+	case .ClientMessage:
+		switch event.xclient.message_type {
+		case gfx.wm_protos:
+			protocol := event.xclient.data.l[0]
+			if xlib.Atom(protocol) == gfx.delete_win {
+				return PlatformEvent{type = .Exit}
 			}
-		}
-		case .SelectionNotify: {
-			if event.xselection.property == gfx.dnd_selection {
 
-				data: rawptr
-				result := _x11_get_window_property(gfx, event.xselection.requestor, event.xselection.property, event.xselection.target, &data)
+		case gfx.dnd_enter:
+			// New drag-and-drop event just entered the window
+			src_win := xlib.Window(event.xclient.data.l[0])
+			is_list := 0 != (event.xclient.data.l[1] & 0b1)
+			version := event.xclient.data.l[1] >> 24
+			gfx.dnd_format = 0
 
-				path := _parse_dropped_files_list(cstring(data))
-
-				// Confirm Successful Transfer from Drop
-				reply := xlib.XEvent{}
-				reply.type = .ClientMessage
-				reply.xclient.window = gfx.dnd_src_window
-				reply.xclient.message_type = gfx.dnd_finished
-				reply.xclient.format = 32
-				reply.xclient.data.l[0] = int(gfx.window)
-				reply.xclient.data.l[1] = int(result)
-				reply.xclient.data.l[2] = int(gfx.dnd_action_copy)
-				xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
-				xlib.Flush(gfx.x_display)
-
-				return PlatformEvent{type = .FileDropped, str = path}
+			fmts: rawptr
+			count: uint
+			if is_list {
+				count = _x11_get_window_property(gfx, src_win, gfx.dnd_type_list, xlib.XA_ATOM, &fmts)
+			} else {
+				count = 3
+				fmts = rawptr(&event.xclient.data.l[2])
 			}
-		}
-		case .SelectionRequest: {
-			request := event.xselectionrequest
-			is_selection_owner := xlib.GetSelectionOwner(gfx.x_display, gfx.clipboard) == gfx.window
-			if is_selection_owner && request.selection == gfx.clipboard {
 
-				send_event: xlib.XEvent
-				send_event.xany.type            = .SelectionNotify
-				send_event.xselection.selection = request.selection
-				send_event.xselection.target    = 0
-				send_event.xselection.property  = 0
-				send_event.xselection.requestor = request.requestor
-				send_event.xselection.time      = request.time
-
-				if request.target == gfx.targets {
-					xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, xlib.XA_ATOM,
-					32, xlib.PropModeReplace, &gfx.utf8_string, 1)
-
-					send_event.xselection.property = request.property
-					send_event.xselection.target = gfx.targets
-				} else if request.target == gfx.utf8_string {
-					xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, request.target,
-					8, xlib.PropModeReplace, rawptr(gfx.clipboard_stash), i32(len(gfx.clipboard_stash)))
-					send_event.xselection.property = request.property
-					send_event.xselection.target = request.target
-				}
-
-				xlib.SendEvent(gfx.x_display, request.requestor, false, {}, &send_event)
-				xlib.Flush(gfx.x_display)
-			}
-		}
-		case .ButtonPress: {
-			type := MouseButtonType.None
-			#partial switch event.xbutton.button {
-				case .Button1: type = .Left
-				case .Button2: type = .Middle
-				case .Button3: type = .Right
-				case: {
-					switch int(event.xbutton.button) {
-						case 4: return PlatformEvent{type = .Scroll, x =  0, y =  1}
-						case 5: return PlatformEvent{type = .Scroll, x =  0, y = -1}
-						case 6: return PlatformEvent{type = .Scroll, x =  1, y =  0}
-						case 7: return PlatformEvent{type = .Scroll, x = -1, y =  0}
+			if fmts != nil {
+				raw_fmts_arr := slice.bytes_from_ptr(fmts, size_of(xlib.Atom))
+				fmts_arr := transmute([]xlib.Atom)raw_fmts_arr
+				for format in fmts_arr {
+					if format == gfx.text_uri_list {
+						gfx.dnd_format = format
+						break
 					}
 				}
 			}
-			x := f64(event.xbutton.x) / dpr
-			y := f64(event.xbutton.y) / dpr
-			return PlatformEvent{type = .MouseDown, mouse = type, x = x, y = y}
-		}
-		case .ButtonRelease: {
-			type := MouseButtonType.None
-			#partial switch event.xbutton.button {
-				case .Button1: type = .Left
-				case .Button2: type = .Middle
-				case .Button3: type = .Right
+
+			if is_list && fmts != nil {
+				xlib.Free(fmts)
 			}
-			x := f64(event.xbutton.x) / dpr
-			y := f64(event.xbutton.y) / dpr
-			return PlatformEvent{type = .MouseUp, mouse = type, x = x, y = y}
+
+			gfx.dnd_src_window = src_win
+			gfx.dnd_version = version
+
+		case gfx.dnd_position:
+			// Confirm Position Update
+			reply := xlib.XEvent{}
+			reply.type = .ClientMessage
+			reply.xclient.window = gfx.dnd_src_window
+			reply.xclient.message_type = gfx.dnd_status
+			reply.xclient.format = 32
+			reply.xclient.data.l[0] = int(gfx.window)
+			if gfx.dnd_format != 0 {
+				reply.xclient.data.l[1] = 1
+				reply.xclient.data.l[4] = int(gfx.dnd_action_copy)
+			}
+			xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
+			xlib.Flush(gfx.x_display)
+
+		case gfx.dnd_drop:
+			time := xlib.Time(event.xclient.data.l[2])
+			xlib.ConvertSelection(gfx.x_display, gfx.dnd_selection, gfx.text_uri_list, gfx.dnd_selection, gfx.window, time)
+
+			// Confirm Drop
+			reply := xlib.XEvent{}
+			reply.type = .ClientMessage
+			reply.xclient.window = gfx.dnd_src_window
+			reply.xclient.message_type = gfx.dnd_finished
+			reply.xclient.format = 32
+			reply.xclient.data.l[0] = int(gfx.window)
+			reply.xclient.data.l[1] = 0
+			reply.xclient.data.l[2] = 0
+			xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
+			xlib.Flush(gfx.x_display)
 		}
-		case .MotionNotify: {
-			x := f64(event.xmotion.x) / dpr
-			y := f64(event.xmotion.y) / dpr
-			return PlatformEvent{type = .MouseMoved, x = x, y = y}
+
+	case .SelectionNotify:
+		if event.xselection.property == gfx.dnd_selection {
+
+			data: rawptr
+			result := _x11_get_window_property(gfx, event.xselection.requestor, event.xselection.property, event.xselection.target, &data)
+
+			path := _parse_dropped_files_list(cstring(data))
+
+			// Confirm Successful Transfer from Drop
+			reply := xlib.XEvent{}
+			reply.type = .ClientMessage
+			reply.xclient.window = gfx.dnd_src_window
+			reply.xclient.message_type = gfx.dnd_finished
+			reply.xclient.format = 32
+			reply.xclient.data.l[0] = int(gfx.window)
+			reply.xclient.data.l[1] = int(result)
+			reply.xclient.data.l[2] = int(gfx.dnd_action_copy)
+			xlib.SendEvent(gfx.x_display, gfx.dnd_src_window, false, {}, &reply)
+			xlib.Flush(gfx.x_display)
+
+			return PlatformEvent{type = .FileDropped, str = path}
 		}
-		case .KeyPress: {
-			key := _resolve_key(gfx.x_display, u8(event.xkey.keycode))
-			return PlatformEvent{type = .KeyDown, key = key}
+
+	case .SelectionRequest:
+		request := event.xselectionrequest
+		is_selection_owner := xlib.GetSelectionOwner(gfx.x_display, gfx.clipboard) == gfx.window
+		if is_selection_owner && request.selection == gfx.clipboard {
+
+			send_event: xlib.XEvent
+			send_event.xany.type            = .SelectionNotify
+			send_event.xselection.selection = request.selection
+			send_event.xselection.target    = 0
+			send_event.xselection.property  = 0
+			send_event.xselection.requestor = request.requestor
+			send_event.xselection.time      = request.time
+
+			if request.target == gfx.targets {
+				xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, xlib.XA_ATOM,
+				32, xlib.PropModeReplace, &gfx.utf8_string, 1)
+
+				send_event.xselection.property = request.property
+				send_event.xselection.target = gfx.targets
+			} else if request.target == gfx.utf8_string {
+				xlib.ChangeProperty(gfx.x_display, request.requestor, request.property, request.target,
+				8, xlib.PropModeReplace, rawptr(gfx.clipboard_stash), i32(len(gfx.clipboard_stash)))
+				send_event.xselection.property = request.property
+				send_event.xselection.target = request.target
+			}
+
+			xlib.SendEvent(gfx.x_display, request.requestor, false, {}, &send_event)
+			xlib.Flush(gfx.x_display)
 		}
-		case .KeyRelease: {
-			key := _resolve_key(gfx.x_display, u8(event.xkey.keycode))
-			return PlatformEvent{type = .KeyUp, key = key}
+
+	case .ButtonPress:
+		type := MouseButtonType.None
+		#partial switch event.xbutton.button {
+		case .Button1: type = .Left
+		case .Button2: type = .Middle
+		case .Button3: type = .Right
+		case:
+			switch int(event.xbutton.button) {
+			case 4: return PlatformEvent{type = .Scroll, x =  0, y =  1}
+			case 5: return PlatformEvent{type = .Scroll, x =  0, y = -1}
+			case 6: return PlatformEvent{type = .Scroll, x =  1, y =  0}
+			case 7: return PlatformEvent{type = .Scroll, x = -1, y =  0}
+			}
 		}
-		case .ConfigureNotify: {
-			w := f64(event.xconfigure.width)
-			h := f64(event.xconfigure.height)
-			return PlatformEvent{type = .Resize, w = w, h = h}
+		x := f64(event.xbutton.x) / dpr
+		y := f64(event.xbutton.y) / dpr
+		return PlatformEvent{type = .MouseDown, mouse = type, x = x, y = y}
+
+	case .ButtonRelease:
+		type := MouseButtonType.None
+		#partial switch event.xbutton.button {
+		case .Button1: type = .Left
+		case .Button2: type = .Middle
+		case .Button3: type = .Right
 		}
+		x := f64(event.xbutton.x) / dpr
+		y := f64(event.xbutton.y) / dpr
+		return PlatformEvent{type = .MouseUp, mouse = type, x = x, y = y}
+
+	case .MotionNotify:
+		x := f64(event.xmotion.x) / dpr
+		y := f64(event.xmotion.y) / dpr
+		return PlatformEvent{type = .MouseMoved, x = x, y = y}
+
+	case .KeyPress:
+		key := _resolve_key(gfx.x_display, u8(event.xkey.keycode))
+		return PlatformEvent{type = .KeyDown, key = key}
+
+	case .KeyRelease:
+		key := _resolve_key(gfx.x_display, u8(event.xkey.keycode))
+		return PlatformEvent{type = .KeyUp, key = key}
+
+	case .ConfigureNotify:
+		w := f64(event.xconfigure.width)
+		h := f64(event.xconfigure.height)
+		return PlatformEvent{type = .Resize, w = w, h = h}
 	}
 	return PlatformEvent{type = .More}
 }
