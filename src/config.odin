@@ -651,9 +651,9 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 		parsed_properly = json_parse(trace, trace_fd)
 	}
 
-	if p.pos == i64(header_size) {
+	if p.pos == i64(header_size) || trace.event_count == 0 {
 		parsed_properly = false
-		post_error(trace, "Trace is empty, did you remember to quit your threads?")
+		post_error(trace, "Trace is empty, did you remember to quit your threads and enable -finstrument-functions?")
 	}
 
 	free_trace_temps(trace)
