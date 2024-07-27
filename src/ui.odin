@@ -88,7 +88,7 @@ draw_histogram :: proc(gfx: ^GFX_Context, trace: ^Trace, header: string, stat: ^
 	max_val : f64 = 0
 	min_val : f64 = max(f64)
 	for entry, i in history {
-		val := math.log2_f64(entry + 1)
+		val := math.log2_f64(f64(entry + 1))
 		temp_history[i] = val
 
 		max_val = max(max_val, val)

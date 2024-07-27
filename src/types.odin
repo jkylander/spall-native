@@ -190,7 +190,7 @@ FunctionStats :: struct {
 	min_time: i64,
 	max_time: i64,
 	count: u32,
-	hist: [100]f64,
+	hist: [100]u32,
 }
 Range :: struct {
 	pid: int,
