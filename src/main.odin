@@ -155,11 +155,17 @@ threaded_config_load :: proc(loader: ^Loader, data: rawptr) {
 	ui_state := state.ui_state
 	free(state)
 
-	start_time := time.tick_now()
-	load_file(trace, filename)
-	duration := time.tick_since(start_time)
-	fmt.printf("runtime: %f ms, got %s events\n", time.duration_milliseconds(duration), tens_fmt(u64(trace.event_count)))
+	total_time     := time.tick_now()
+	parse_start    := time.tick_now()
+	load_file(loader, trace, filename)
+	parse_duration := time.tick_since(parse_start)
+
+	fmt.printf("trace load took: %f ms, got %s events\n", time.duration_milliseconds(parse_duration), tens_fmt(u64(trace.event_count)))
 	fmt.printf("trace length: %s\n", time_fmt(disp_time(trace, f64(trace.total_max_time - trace.total_min_time))))
+
+	pool_wait(&loader.pool)
+	total_duration := time.tick_since(total_time)
+	fmt.printf("full load took: %f ms\n", time.duration_milliseconds(total_duration))
 
 	ui_state.loading_config = false
 	ui_state.post_loading = true
@@ -187,7 +193,7 @@ load_config :: proc(loader: ^Loader, trace: ^Trace, ui_state: ^UIState) -> bool 
 	// it checks if start_trace is non
 	start_trace = ""
 
-	loader_load_file(loader, Loader_Task{threaded_config_load, state})
+	loader_set_task(loader, Loader_Task{threaded_config_load, state})
 	return true
 }
 
@@ -198,6 +204,19 @@ SELF_TRACE :: false
 FULL_SPEED :: false
 GOOD_BOY_MODE :: false
 terminal_mode := false
+
+when SELF_TRACE {
+	@(instrumentation_enter)
+	spall_enter :: proc "contextless" (proc_address, call_site_return_address: rawptr, loc: runtime.Source_Code_Location) {
+		spall._buffer_begin(&spall_ctx, &spall_buffer, "", "", loc)
+	}
+
+	@(instrumentation_exit)
+	spall_exit :: proc "contextless" (proc_address, call_site_return_address: rawptr, loc: runtime.Source_Code_Location) {
+		spall._buffer_end(&spall_ctx, &spall_buffer)
+	}
+}
+
 main :: proc() {
 	when SELF_TRACE {
 		current_time := time.time_to_unix(time.now())
@@ -208,8 +227,6 @@ main :: proc() {
 		buffer_backing := make([]u8, spall.BUFFER_DEFAULT_SIZE)
 		spall_buffer = spall.buffer_create(buffer_backing)
 		defer spall.buffer_destroy(&spall_ctx, &spall_buffer)
-
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
 	}
 	clicked_t = time.tick_now()
 	ui_state := UIState{
@@ -233,7 +250,7 @@ main :: proc() {
 		ui_state.ui_mode = .TraceView
 	}
 
-	thread_count := max(os.processor_core_count() - 1, 1)
+	thread_count := 1//max(os.processor_core_count() - 1, 1)
 	loader_init(&loader, thread_count)
 	trace := new(Trace)
 	init_trace(trace)
@@ -521,10 +538,6 @@ main :: proc() {
 				}
 			}
 		*/
-
-		when SELF_TRACE {
-			spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "frame")
-		}
 
 		if should_toggle_fullscreen {
 			fullscreen = !fullscreen

@@ -260,6 +260,13 @@ Loader :: struct {
 
 loader_worker :: proc(ptr: rawptr) {
 	loader := cast(^Loader)ptr
+	current_thread_idx = 0xBEEF
+
+	when SELF_TRACE {
+		buffer_backing := make([]u8, spall.BUFFER_DEFAULT_SIZE)
+		spall_buffer = spall.buffer_create(buffer_backing, u32(current_thread_idx))
+		defer spall.buffer_destroy(&spall_ctx, &spall_buffer)
+	}
 
 	pool_init(&loader.pool, loader.thread_count)
 
@@ -291,7 +298,7 @@ loader_init :: proc(loader: ^Loader, thread_count: int) {
 	loader.thrd = thread.create_and_start_with_data(loader, loader_worker)
 }
 
-loader_load_file :: proc(loader: ^Loader, task: Loader_Task) {
+loader_set_task :: proc(loader: ^Loader, task: Loader_Task) {
 	loader.task = task
 	sync.atomic_store(&loader.has_task, 1)
 	sync.futex_signal(&loader.has_task)

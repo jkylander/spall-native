@@ -528,10 +528,6 @@ draw_debug :: proc(gfx: ^GFX_Context, ui_state: ^UIState) {
 }
 
 draw_rect_tooltip :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	full_flamegraph_rect := ui_state.full_flamegraph_rect
 
 	tip_pos := mouse_pos
@@ -629,10 +625,6 @@ draw_rect_tooltip :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) 
 }
 
 draw_flamegraphs :: proc(gfx: ^GFX_Context, trace: ^Trace, start_time, end_time: i64, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	full_flamegraph_rect := ui_state.full_flamegraph_rect
 	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
 	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
@@ -961,10 +953,6 @@ draw_flamegraphs :: proc(gfx: ^GFX_Context, trace: ^Trace, start_time, end_time:
 }
 
 draw_global_activity :: proc(gfx: ^GFX_Context, trace: ^Trace, highlight_start_x, highlight_end_x: f64, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	global_activity_rect := ui_state.global_activity_rect
 	full_flamegraph_rect := ui_state.full_flamegraph_rect
 	minimap_rect := ui_state.minimap_rect
@@ -1070,10 +1058,6 @@ draw_global_activity :: proc(gfx: ^GFX_Context, trace: ^Trace, highlight_start_x
 }
 
 draw_minimap :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	minimap_rect              := ui_state.minimap_rect
 	full_flamegraph_rect      := ui_state.full_flamegraph_rect
 	info_pane_rect            := ui_state.info_pane_rect
@@ -1230,10 +1214,6 @@ draw_minimap :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 }
 
 draw_topbars :: proc(gfx: ^GFX_Context, trace: ^Trace, start_time, end_time: i64, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	header_rect               := ui_state.header_rect
 	global_activity_rect      := ui_state.global_activity_rect
 	global_timebar_rect       := ui_state.global_timebar_rect
@@ -1330,10 +1310,6 @@ draw_topbars :: proc(gfx: ^GFX_Context, trace: ^Trace, start_time, end_time: i64
 INITIAL_ITER :: 500_000
 FULL_ITER    :: 2_000_000
 draw_stats :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	full_flamegraph_rect  := ui_state.full_flamegraph_rect
 	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
 
@@ -1821,10 +1797,6 @@ draw_stats :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 }
 
 process_multiselect :: proc(gfx: ^GFX_Context, trace: ^Trace, pan_delta: Vec2, dt: f64, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	full_flamegraph_rect := ui_state.full_flamegraph_rect
 	inner_flamegraph_rect := ui_state.inner_flamegraph_rect
 	padded_flamegraph_rect := ui_state.padded_flamegraph_rect
@@ -1979,10 +1951,6 @@ sort_stats :: proc(trace: ^Trace) {
 }
 
 process_inputs :: proc(trace: ^Trace, dt: f64, ui_state: ^UIState) -> (i64, i64, Vec2) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	filter_pane_rect  := ui_state.filter_pane_rect
 	stats_pane_rect   := ui_state.stats_pane_rect
 	minimap_rect      := ui_state.minimap_rect
@@ -2207,10 +2175,6 @@ init_stat_state :: proc(stats: ^Stats, ui_state: ^UIState) {
 }
 
 process_stats :: proc(trace: ^Trace, ui_state: ^UIState) {
-	when SELF_TRACE {
-		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, "")
-	}
-
 	if trace.stats.state == .Finished || trace.stats.state == .NoStats {
 		return
 	}

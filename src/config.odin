@@ -435,6 +435,15 @@ get_event_range :: proc(depth: ^Depth, idx: int) -> (int, int) {
 pid_sort_proc :: proc(a, b: Process) -> bool { return a.min_time < b.min_time }
 tid_sort_proc :: proc(a, b: Thread) -> bool  { return a.min_time < b.min_time }
 
+Load_Symbols_Args :: struct {
+	trace: ^Trace,
+	path:  string,
+}
+load_symbols_task :: proc(pool: ^Pool, raw_args: rawptr) {
+	args := cast(^Load_Symbols_Args)(raw_args)
+	load_executable(args.trace, args.path)
+}
+
 load_executable :: proc(trace: ^Trace, file_name: string) -> bool {
 	fmt.printf("Loading symbols from %s\n", file_name)
 
@@ -539,7 +548,7 @@ init_trace :: proc(trace: ^Trace) {
 	}
 }
 
-load_file :: proc(trace: ^Trace, file_name: string) {
+load_file :: proc(loader: ^Loader, trace: ^Trace, file_name: string) {
 	start_time := time.tick_now()
 
 	init_trace(trace)
@@ -627,9 +636,12 @@ load_file :: proc(trace: ^Trace, file_name: string) {
 
 		symbol_path := string(header_buffer[size_of(spall_fmt.Auto_Header):][:hdr.program_path_len])
 		header_size = size_of(spall_fmt.Auto_Header) + i64(hdr.program_path_len)
-		if !load_executable(trace, symbol_path) {
-			return
-		}
+
+		sym_args := new(Load_Symbols_Args)
+		sym_args.trace = trace
+		sym_args.path = symbol_path
+
+		pool_add_task(&loader.pool, Pool_Task{load_symbols_task, sym_args})
 
 		file_type = .AutoStream
 	} else {
