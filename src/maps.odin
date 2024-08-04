@@ -107,99 +107,52 @@ vh_insert :: proc(v: ^ValHash, key: u32, val: int) {
 
 // String interning
 INMap :: struct {
-	entries: [dynamic]u64,
-	hashes:  [dynamic]int,
-	resize_threshold: i64,
-	len_minus_one: u32,
+	str_idxs: [dynamic]u64,
 }
 
 in_init :: proc(allocator := context.allocator) -> INMap {
 	v := INMap{
-		entries = make([dynamic]u64, 0, allocator),
-		hashes = make([dynamic]int, 32, allocator), // must be a power of two
+		str_idxs = make([dynamic]u64, 32 * 1024 * 1024, allocator),
 	}
-	for i in 0..<len(v.hashes) {
-		v.hashes[i] = -1
-	}
-
-	v.resize_threshold = i64((3 * len(v.hashes)) / 4)
 	return v
 }
 in_free :: proc(v: ^INMap) {
-	delete(v.entries)
-	delete(v.hashes)
+	delete(v.str_idxs)
 }
 
 in_hash :: proc (key: string) -> u32 {
-	k := transmute([]u8)key
-	return #force_inline hash.murmur32(k)
+	v := transmute([]u8)key
+	return #force_inline hash.murmur32(v)
 }
 
-in_reinsert :: proc (v: ^INMap, strings: ^[dynamic]u8, entry: u64, v_idx: int) {
-	hv := u64(in_hash(in_getstr(strings, entry))) & u64(len(v.hashes) - 1)
-	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
-		idx := (u64(hv) + i) & u64(len(v.hashes) - 1)
-
-		e_idx := v.hashes[idx]
-		if e_idx == -1 {
-			v.hashes[idx] = v_idx
-			return
-		}
-	}
-}
-
-in_grow :: proc(v: ^INMap, strings: ^[dynamic]u8) {
-	non_zero_resize(&v.hashes, len(v.hashes) * 2)
-	for i in 0..<len(v.hashes) {
-		v.hashes[i] = -1
-	}
-
-	v.resize_threshold = i64((3 * len(v.hashes)) / 4)
-
-	for entry, idx in v.entries {
-		in_reinsert(v, strings, entry, idx)
-	}
-}
-
-in_get :: proc(v: ^INMap, strings: ^[dynamic]u8, key: string) -> u64 {
-	if i64(len(v.entries)) >= v.resize_threshold {
-		in_grow(v, strings)
-	}
-
+in_get :: proc(v: ^INMap, str_table: ^[dynamic]string, key: string) -> u64 {
 	if len(key) == 0 {
 		return 0
 	}
 
-	hv := u64(in_hash(key)) & u64(len(v.hashes) - 1)
-	for i: u64 = 0; i < u64(len(v.hashes)); i += 1 {
-		idx := (u64(hv) + i) & u64(len(v.hashes) - 1)
+	hv := in_hash(key) & u32(len(v.str_idxs) - 1)
+	for i: u32 = 0; i < u32(len(v.str_idxs)); i += 1 {
+		idx := (hv + i) & u32(len(v.str_idxs) - 1)
 
-		e_idx := v.hashes[idx]
-		if e_idx == -1 {
-			v.hashes[idx] = len(v.entries)
+		e_idx := v.str_idxs[idx]
+		if e_idx == 0 {
 
-			str_start := u64(len(strings))
-			in_str := str_start
-			key_len := u16(len(key))
-			key_len_bytes := (([^]u8)(&key_len)[:2])
-			non_zero_append_elem(strings, key_len_bytes[0])
-			non_zero_append_elem(strings, key_len_bytes[1])
-			non_zero_append_elem_string(strings, key)
-			non_zero_append(&v.entries, in_str)
+			str_idx := u64(len(str_table))
+			muh_str := strings.clone(key)
+			non_zero_append(str_table, muh_str)
+			v.str_idxs[idx] = str_idx
 
-			return in_str
-		} else if in_getstr(strings, v.entries[e_idx]) == key {
-			return v.entries[e_idx]
+			return str_idx
+		} else if str_table[e_idx] == key {
+			return e_idx
 		}
 	}
 
 	push_fatal(SpallError.Bug)
 }
 
-in_getstr :: #force_inline proc(v: ^[dynamic]u8, s: u64) -> string {
-	str_len := u64((^u16)(raw_data(v[s:]))^)
-	str_start := s+size_of(u16)
-	return string(v[str_start:str_start+str_len])
+in_getstr :: #force_inline proc(str_table: ^[dynamic]string, idx: u64) -> string {
+	return str_table[idx]
 }
 
 KM_CAP :: 32

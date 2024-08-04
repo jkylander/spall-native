@@ -646,7 +646,7 @@ get_attr_addr :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, i
 	}
 }
 
-get_attr_str :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, id: Dw_At) -> string {
+get_attr_str :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, id: Dw_At) -> cstring {
 	val := get_attr(attrs[:], id)
 	if val == nil {
 		return ""
@@ -658,11 +658,11 @@ get_attr_str :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, id
 	#partial switch v in val {
 	case dw_str:
 		if v == "" { return "" }
-		return strings.clone_from_cstring(cstring(v), context.temp_allocator)
+		return cstring(v)
 	case dw_strp:
 		str := cstring(raw_data(ctx.sections.debug_str[v:]))
 		if str == "" { return "" }
-		return strings.clone_from_cstring(str, context.temp_allocator)
+		return str
 	case dw_strx:
 		idx := u64(v)
 
@@ -678,7 +678,7 @@ get_attr_str :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, id
 			str := cstring(raw_data(debug_str[off:]))
 			if str == "" { return "" }
 
-			return strings.clone_from_cstring(str, context.temp_allocator)
+			return str
 		} else {
 			off_off := cu.str_offsets_base + (8 * idx)
 			if (off_off + 8) > u64(len(str_offsets)) { return "" }
@@ -689,12 +689,12 @@ get_attr_str :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, attrs: []Attr_Result, id
 			str := cstring(raw_data(debug_str[off:]))
 			if str == "" { return "" }
 
-			return strings.clone_from_cstring(str, context.temp_allocator)
+			return str
 		}
 	case dw_line_strp:
 		str := cstring(raw_data(ctx.sections.line_str[v:]))
 		if str == "" { return "" }
-		return strings.clone_from_cstring(str, context.temp_allocator)
+		return str
 	case:
 		fmt.printf("Failed to parse string!\n")
 		return ""
@@ -1562,7 +1562,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, _skew_size: u64) -> bool 
 			case .subprogram: fallthrough
 			case .inlined_subroutine: fallthrough
 			case .entry_point:
-				func_name := ""
+				func_name : cstring = ""
 				attrs := attr_scratch[:]
 
 				func_loop: for j := 0; j < 3; j += 1 {
@@ -1638,7 +1638,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, _skew_size: u64) -> bool 
 				}
 
 				symbol_addr := low_pc
-				interned_symbol := in_get(&trace.intern, &trace.string_block, func_name)
+				interned_symbol := in_get(&trace.intern, &trace.string_block, string(func_name))
 				am_insert(&trace.addr_map, symbol_addr, interned_symbol)
 
 				if !symbol_found && func_name == "spall_auto_init" {

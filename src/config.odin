@@ -506,7 +506,7 @@ load_executable :: proc(trace: ^Trace, file_name: string) -> bool {
 init_trace_allocs :: proc(trace: ^Trace, file_name: string) {
 	trace.processes    = make([dynamic]Process)
 	trace.process_map  = vh_init()
-	trace.string_block = make([dynamic]u8)
+	trace.string_block = make([dynamic]string)
 	trace.intern       = in_init()
 	trace.addr_map     = am_init()
 
@@ -518,10 +518,7 @@ init_trace_allocs :: proc(trace: ^Trace, file_name: string) {
 
 	trace.line_info = make([dynamic]Line_Info)
 	strings.intern_init(&trace.filename_map)
-
-	// deliberately setting the first elem to 0, to simplify string interactions
-	non_zero_append_elem(&trace.string_block, 0)
-	non_zero_append_elem(&trace.string_block, 0)
+	non_zero_append(&trace.string_block, "")
 }
 
 init_trace :: proc(trace: ^Trace) {

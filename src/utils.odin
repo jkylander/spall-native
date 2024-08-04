@@ -23,8 +23,8 @@ post_error :: proc(trace: ^Trace, fmt_in: string, args: ..any) {
 }
 
 @(cold)
-push_fatal :: proc(err: SpallError) -> ! {
-	fmt.eprintf("Error: %v\n", err)
+push_fatal :: proc(err: SpallError, loc := #caller_location) -> ! {
+	fmt.eprintf("Error: %v | %s\n", err, loc)
 	trap()
 	// os.exit(1)
 }

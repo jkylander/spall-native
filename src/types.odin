@@ -296,7 +296,7 @@ Trace :: struct {
 	total_size: i64,
 	parser: Parser,
 	intern: INMap,
-	string_block: [dynamic]u8,
+	string_block: [dynamic]string,
 
 	skew_address: u64,
 	addr_map: AMMap,
