@@ -768,7 +768,7 @@ get_function :: proc(trace: ^Trace, _addr: u64) -> (u64, bool) {
 		return function.name, true
 	}
 
-	fmt.printf("Failed to match: 0x%08x | looking at 0x%08x -> 0x%08x\n", addr, function.low_pc, function.high_pc)
+	//fmt.printf("Failed to match: 0x%08x | looking at 0x%08x -> 0x%08x\n", addr, function.low_pc, function.high_pc)
 	return 0, false
 }
 
