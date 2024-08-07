@@ -138,7 +138,7 @@ extern "C" {
     #define Spall_Atomic(X) _Atomic (X)
 #endif
 
-#define SPALL_FN SPALL_NOINSTRUMENT
+#define SPALL_FN static SPALL_NOINSTRUMENT
 
 #if SPALL_IS_X64
 #include <x86intrin.h>
@@ -255,20 +255,20 @@ typedef struct SpallBuffer {
 #include <linux/futex.h>
 #include <linux/limits.h>
 #include <linux/perf_event.h>
+#include <sys/auxv.h>
+#include <elf.h>
 
 SPALL_FN uint64_t spall_auto_get_base_address(void) {
-	int AT_BASE = 7;
-
-	uint64_t base = getauxval(AT_BASE);
-	if (base != 0) {
-		return base;
+	uint64_t hdr_size = 0;
+	if (sizeof(void *) == 8) {
+		hdr_size = sizeof(Elf64_Ehdr);
+	} else {
+		hdr_size = sizeof(Elf32_Ehdr);
 	}
 
-	int AT_PHDR = 3;
 	uint64_t phdr = getauxval(AT_PHDR);
-
-	int ELF64_EHDR_SIZE = 64;
-	return phdr - ELF64_EHDR_SIZE;
+	uint64_t addr = phdr - hdr_size;
+	return addr;
 }
 
 SPALL_FN bool get_program_path(char **out_path) {

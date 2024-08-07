@@ -274,6 +274,13 @@ main :: proc() {
 		if !ok { return }
 		loader_wait(&loader)
 		loader_destroy(&loader)
+
+		/*
+		for i := 0; i < 2; i += 1 {
+			ev := trace.processes[0].threads[0].depths[0].events[i]
+			fmt.printf("Got a function %v\n", ev_name(trace, &ev))
+		}
+		*/
 		
 		return
 	}

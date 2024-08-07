@@ -1661,11 +1661,11 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections) -> bool {
 		return a.low_pc < b.low_pc
 	}
 	slice.sort_by(trace.functions[:], func_order)
-/*
+	/*
 	for func in trace.functions {
 		fmt.printf("%s - 0x%08x -> 0x%08x\n", in_getstr(&trace.string_block, func.name), func.low_pc, func.high_pc)
 	}
-*/
+	*/
 
 	return true
 }
