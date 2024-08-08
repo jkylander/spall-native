@@ -917,12 +917,12 @@ parse_range_table :: proc(ctx: ^DWARF_Context, cu: ^CU_Unit, val: Attr_Data, sym
 		if ctx.bits_32 {
 			offset_loc := cu.rnglists_base + (4 * u64(v))
 			if (offset_loc + 4) > u64(len(ctx.sections.rnglists)) { return }
-			offset := slice_to_type(ctx.sections.rnglists, u32) or_return
+			offset := slice_to_type(ctx.sections.rnglists[offset_loc:], u32) or_return
 			ranges_off = cu.rnglists_base + u64(offset)
 		} else {
 			offset_loc := cu.rnglists_base + (8 * u64(v))
 			if (offset_loc + 8) > u64(len(ctx.sections.rnglists)) { return }
-			offset := slice_to_type(ctx.sections.rnglists, u64) or_return
+			offset := slice_to_type(ctx.sections.rnglists[offset_loc:], u64) or_return
 			ranges_off = cu.rnglists_base + offset
 		}
 	case:
@@ -1520,12 +1520,12 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections) -> bool {
 
 			au := cu.abbrevs[au_idx]
 
-/*
+			/*
 			fmt.printf("0x%08x\n", block_offset)
 			for attr, idx in attr_scratch {
 				fmt.printf("\t%s - %s(%v)\n", attr.id, au.attrs[idx].form_id, attr.val)
 			}
-*/
+			*/
 
 			#partial switch au.type {
 			case .compile_unit:
