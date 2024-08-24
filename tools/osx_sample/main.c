@@ -124,16 +124,18 @@ int main(int argc, char **argv, char **envp) {
 			mach_msg_trailer_t           trailer;
 		} recv_msg;
 
-		err = mach_msg(&recv_msg.header, MACH_RCV_MSG, 0, sizeof(recv_msg), recv_port, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+		uint32_t initial_timeout = 500; // 500ms
+
+		err = mach_msg(&recv_msg.header, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(recv_msg), recv_port, initial_timeout, MACH_PORT_NULL);
 		if (err != 0) {
-			printf("oops 5\n");
+			printf("No response from child, we may not be able to hook this!\n");
 			exit(1);
 		}
 		mach_port_t child_task = recv_msg.task_port.name;
 
-		err = mach_msg(&recv_msg.header, MACH_RCV_MSG, 0, sizeof(recv_msg), recv_port, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+		err = mach_msg(&recv_msg.header, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(recv_msg), recv_port, initial_timeout, MACH_PORT_NULL);
 		if (err != 0) {
-			printf("oops 6\n");
+			printf("No response from child, we may not be able to hook this!\n");
 			exit(1);
 		}
 		mach_port_t child_port = recv_msg.task_port.name;
