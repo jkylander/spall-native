@@ -11,6 +11,7 @@
 
 typedef char name_t[128];
 extern kern_return_t bootstrap_register2(mach_port_t bp, name_t service_name, mach_port_t sp, uint64_t flags);
+extern kern_return_t mach_vm_remap(vm_map_t target_task, mach_vm_address_t *target_address, mach_vm_size_t size, mach_vm_offset_t mask, int flags, vm_map_t src_task, mach_vm_address_t src_address, boolean_t copy, vm_prot_t *cur_protection, vm_prot_t *max_protection, vm_inherit_t inheritance);
 
 char **setup_envs(char *path, char **envp) {
 	int env_len = 1;
@@ -32,16 +33,17 @@ char **setup_envs(char *path, char **envp) {
 	return envs;
 }
 
-void sample_task(mach_port_t task) {
-	task_suspend(task);
+void sample_task(mach_port_t my_task, mach_port_t child_task) {
+	task_suspend(child_task);
 
 	thread_act_array_t thread_list;
 	mach_msg_type_number_t thread_count;
-	kern_return_t err = task_threads(task, &thread_list, &thread_count);
+	kern_return_t err = task_threads(child_task, &thread_list, &thread_count);
 	if (err != 0) {
 		return;
 	}
 
+	uint64_t saved_sp;
 	printf("Sampling all threads\n");
 	for (int i = 0; i < thread_count; i++) {
 		thread_act_t thread = thread_list[i];
@@ -58,9 +60,21 @@ void sample_task(mach_port_t task) {
 		printf("RAX: 0x%08llx\n", state.__rax);
 		printf("RBX: 0x%08llx\n", state.__rbx);
 		printf("RCX: 0x%08llx\n", state.__rcx);
+
+		saved_sp = state.__rsp;
+
 	}
 
-	task_resume(task);
+	uint64_t stack_page = mach_vm_trunc_page(saved_sp);
+	uint8_t *page = NULL;
+	vm_prot_t cur_prot = VM_PROT_NONE;
+	vm_prot_t max_prot = VM_PROT_NONE;
+	err = mach_vm_remap(my_task, (uint64_t *)&page, PAGE_SIZE, 0, 1, child_task, saved_sp, 0, &cur_prot, &max_prot, VM_INHERIT_SHARE);
+
+	uint64_t val = ((uint64_t *)page)[0];
+	printf("top of stack page: 0x%08llx\n", val);
+
+	task_resume(child_task);
 }
 
 int main(int argc, char **argv, char **envp) {
@@ -135,7 +149,7 @@ int main(int argc, char **argv, char **envp) {
 		}
 		mach_port_t child_port = recv_msg.task_port.name;
 
-		sample_task(child_task);
+		sample_task(my_task, child_task);
 
 		struct {
 			mach_msg_header_t             header;

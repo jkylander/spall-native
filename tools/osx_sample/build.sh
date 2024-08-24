@@ -1,2 +1,2 @@
-clang -o same -g main.c
-clang -dynamiclib -o same.dylib -g dylib_shim.c
+clang -o same -O3 main.c
+clang -dynamiclib -o same.dylib -O3 dylib_shim.c
