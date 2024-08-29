@@ -78,66 +78,7 @@ Mach_Send_Msg :: struct {
 	task_port: darwin.mach_msg_port_descriptor_t,
 }
 
-sample_child :: proc(program_name: string, args: []string) -> (ok: bool) {
-	recv_port: darwin.mach_port_t
-	my_task := darwin.mach_task_self()
-	if darwin.mach_port_allocate(my_task, darwin.MACH_PORT_RIGHT_RECEIVE, &recv_port) != 0 {
-		return
-	}
-
-	bootstrap_port: darwin.mach_port_t
-	if darwin.task_get_special_port(my_task, darwin.TASK_BOOTSTRAP_PORT, &bootstrap_port) != 0 {
-		return
-	}
-
-	right: darwin.mach_port_t
-	acquired_right: darwin.mach_port_t
-	if darwin.mach_port_extract_right(my_task, u32(recv_port), darwin.MACH_MSG_TYPE_MAKE_SEND, &right, &acquired_right) != 0 {
-		return
-	}
-
-	if darwin.bootstrap_register2(bootstrap_port, "SPALL_BOOTSTRAP", right, 0) != 0 {
-		return
-	}
-
-	env_vars := os2.environ(context.temp_allocator)
-	envs := make([dynamic]string, len(env_vars)+1, context.temp_allocator)
-	i := 0
-	for ; i < len(env_vars); i += 1 {
-		envs[i] = string(env_vars[i])
-	}
-
-	dir, err := os2.get_working_directory(context.temp_allocator)
-	if err != nil { return }
-
-	prog_path := program_name
-	if !filepath.is_abs(prog_path) {
-		prog_path = fmt.tprintf("%s/%s", dir, program_name)
-	}
-	
-	envs[i] = fmt.tprintf("DYLD_INSERT_LIBRARIES=%s/tools/osx_dylib_sample/%s", dir, "same.dylib")
-
-	child_pid, err2 := os.posix_spawn(prog_path, args, envs[:], nil, nil)
-	if err2 != nil {
-		fmt.printf("failed to spawn: %s\n", prog_path)
-		return
-	}
-	fmt.printf("Spawned %v\n", child_pid)
-
-	initial_timeout: u32 = 500 // ms
-
-	// Get the Child's task and port
-	recv_msg := Mach_Recv_Msg{}
-	if darwin.mach_msg(&recv_msg, darwin.MACH_RCV_MSG | darwin.MACH_RCV_TIMEOUT, 0, size_of(recv_msg), recv_port, initial_timeout, 0) != 0 {
-		return
-	}
-	child_task := recv_msg.task_port.name
-
-	if darwin.mach_msg(&recv_msg, darwin.MACH_RCV_MSG | darwin.MACH_RCV_TIMEOUT, 0, size_of(recv_msg), recv_port, initial_timeout, 0) != 0 {
-		return
-	}
-	child_port := recv_msg.task_port.name
-
+sample_task :: proc(my_task: darwin.task_t, child_task: darwin.task_t) {
 	darwin.task_suspend(child_task)
 
 	thread_list: darwin.thread_list_t
@@ -170,8 +111,86 @@ sample_child :: proc(program_name: string, args: []string) -> (ok: bool) {
 	}
 
 	darwin.task_resume(child_task)
+}
 
-	fmt.printf("got task and port from child | %v, %v\n", child_task, child_port)
+SampleState :: struct {
+	has_setup:                    bool,
+	my_task:             darwin.task_t,
+	recv_port:      darwin.mach_port_t,
+	bootstrap_port: darwin.mach_port_t,
+}
+
+sample_state := SampleState{}
+sample_child :: proc(program_name: string, args: []string) -> (ok: bool) {
+	if !sample_state.has_setup {
+		sample_state.my_task = darwin.mach_task_self()
+		if darwin.mach_port_allocate(sample_state.my_task, darwin.MACH_PORT_RIGHT_RECEIVE, &sample_state.recv_port) != 0 {
+			fmt.printf("failed to allocate port\n")
+			return
+		}
+
+		if darwin.task_get_special_port(sample_state.my_task, darwin.TASK_BOOTSTRAP_PORT, &sample_state.bootstrap_port) != 0 {
+			fmt.printf("failed to get special port\n")
+			return
+		}
+
+		right: darwin.mach_port_t
+		acquired_right: darwin.mach_port_t
+		if darwin.mach_port_extract_right(sample_state.my_task, u32(sample_state.recv_port), darwin.MACH_MSG_TYPE_MAKE_SEND, &right, &acquired_right) != 0 {
+			fmt.printf("failed to get right\n")
+			return
+		}
+
+		k_err := darwin.bootstrap_register2(sample_state.bootstrap_port, "SPALL_BOOTSTRAP", right, 0)
+		if k_err != 0 {
+			fmt.printf("failed to register bootstrap | got: %v\n", k_err)
+			return
+		}
+
+		sample_state.has_setup = true
+	}
+
+	env_vars := os2.environ(context.temp_allocator)
+	envs := make([dynamic]string, len(env_vars)+1, context.temp_allocator)
+	i := 0
+	for ; i < len(env_vars); i += 1 {
+		envs[i] = string(env_vars[i])
+	}
+
+	dir, err := os2.get_working_directory(context.temp_allocator)
+	if err != nil { return }
+
+	prog_path := program_name
+	if !filepath.is_abs(prog_path) {
+		prog_path = fmt.tprintf("%s/%s", dir, program_name)
+	}
+	
+	envs[i] = fmt.tprintf("DYLD_INSERT_LIBRARIES=%s/tools/osx_dylib_sample/%s", dir, "same.dylib")
+
+	child_pid, err2 := os.posix_spawn(prog_path, args, envs[:], nil, nil)
+	if err2 != nil {
+		fmt.printf("failed to spawn: %s\n", prog_path)
+		return
+	}
+	fmt.printf("Spawned %v\n", child_pid)
+
+	initial_timeout: u32 = 500 // ms
+
+	// Get the Child's task and port
+	recv_msg := Mach_Recv_Msg{}
+	if darwin.mach_msg(&recv_msg, darwin.MACH_RCV_MSG | darwin.MACH_RCV_TIMEOUT, 0, size_of(recv_msg), sample_state.recv_port, initial_timeout, 0) != 0 {
+		fmt.printf("failed to get child task\n")
+		return
+	}
+	child_task := recv_msg.task_port.name
+
+	if darwin.mach_msg(&recv_msg, darwin.MACH_RCV_MSG | darwin.MACH_RCV_TIMEOUT, 0, size_of(recv_msg), sample_state.recv_port, initial_timeout, 0) != 0 {
+		fmt.printf("failed to get child port\n")
+		return
+	}
+	child_port := recv_msg.task_port.name
+
+	sample_task(sample_state.my_task, child_task)
 
 	// Send the all clear
 	send_msg := Mach_Send_Msg{}
@@ -181,10 +200,11 @@ sample_child :: proc(program_name: string, args: []string) -> (ok: bool) {
 	send_msg.header.msgh_size = size_of(send_msg)
 
 	send_msg.body.msgh_descriptor_count = 1
-	send_msg.task_port.name = my_task
+	send_msg.task_port.name = sample_state.my_task
 	send_msg.task_port.disposition = darwin.MACH_MSG_TYPE_COPY_SEND
 	send_msg.task_port.type = darwin.MACH_MSG_PORT_DESCRIPTOR
 	if darwin.mach_msg_send(&send_msg) != 0 {
+		fmt.printf("failed to send all-clear to child\n")
 		return
 	}
 
