@@ -129,7 +129,6 @@ process_dylibs :: proc(trace: ^Trace, my_task: darwin.task_t, child_task: darwin
 	image_infos_bytes := map_child_mem(my_task, child_task, dyld_info.all_image_info_addr, size_of(darwin.dyld_all_image_infos)) or_return
 	image_infos := transmute(^darwin.dyld_all_image_infos)image_infos_bytes
 
-	prog_name := filepath.base(sample_state.program_path)
 	for i : u64 = 0; i < u64(image_infos.info_array_count); i += 1 {
 		info_array_entry_addr := u64(uintptr(image_infos.info_array)) + (i * size_of(darwin.dyld_image_info))
 		entry_bytes := map_child_mem(my_task, child_task, info_array_entry_addr, size_of(darwin.dyld_image_info)) or_return
@@ -143,8 +142,7 @@ process_dylibs :: proc(trace: ^Trace, my_task: darwin.task_t, child_task: darwin
 
 		// Find the program's base address here
 		if sample_state.base_addr == 0 {
-			obj_name := filepath.base(file_path)
-			if file_path == sample_state.program_path || obj_name == prog_name {
+			if file_path == sample_state.program_path {
 				sample_state.base_addr = info_entry.image_load_addr
 				fmt.printf("Found program base addr: 0x%08x\n", info_entry.image_load_addr)
 			}
@@ -252,16 +250,18 @@ sample_child :: proc(trace: ^Trace, program_name: string, args: []string) -> (ok
 	dir, err := os2.get_working_directory(context.temp_allocator)
 	if err != nil { return }
 
-	prog_path := program_name
-	
 	envs[i] = fmt.tprintf("DYLD_INSERT_LIBRARIES=%s/tools/osx_dylib_sample/%s", dir, "same.dylib")
 
-	child_pid, err2 := os.spawnp(prog_path, args, envs[:], nil, nil)
+	child_pid, err2 := os.spawnp(program_name, args, envs[:], nil, nil)
 	if err2 != nil {
-		fmt.printf("failed to spawn: %s | %v\n", prog_path, err2)
+		fmt.printf("failed to spawn: %s | %v\n", program_name, err2)
 		return
 	}
-	fmt.printf("Spawned %s @ %v\n", prog_path, child_pid)
+	fmt.printf("Spawned %s @ %v\n", program_name, child_pid)
+
+	buffer := [4096]u8{}
+	darwin.proc_pidpath(child_pid, raw_data(buffer[:]), len(buffer))
+	real_path := string(cstring(raw_data(buffer[:])))
 
 	initial_timeout: u32 = 500 // ms
 
@@ -299,7 +299,7 @@ sample_child :: proc(trace: ^Trace, program_name: string, args: []string) -> (ok
 
 	sample_state := Sample_State{}
 	sample_state.threads = make(map[u64]Sample_Thread)
-	sample_state.program_path = prog_path
+	sample_state.program_path = real_path
 
 	init_trace_allocs(trace, program_name)
 
@@ -405,7 +405,7 @@ sample_child :: proc(trace: ^Trace, program_name: string, args: []string) -> (ok
 	}
 	fmt.printf("Sampled %v events\n", trace.event_count)
 
-	load_executable(trace, prog_path)
+	load_executable(trace, real_path)
 	generate_color_choices(trace)
 	chunk_events(trace)
 
