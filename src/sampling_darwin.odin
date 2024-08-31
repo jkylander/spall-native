@@ -306,23 +306,29 @@ sample_child :: proc(trace: ^Trace, program_name: string, args: []string) -> (ok
 
 	init_trace_allocs(trace, program_name)
 
-	for {
+	for !trace.requested_stop {
 		if !sample_task(trace, sample_setup.my_task, child_task, &sample_state) {
 			break
 		}
-		time.sleep(2 * time.Millisecond)
-	}
-
-	status: i32 = 0
-	posix.waitpid(posix.pid_t(child_pid), &status, nil)
-
-	for !posix.WIFEXITED(status) && posix.WIFSIGNALED(status) {
-		if posix.waitpid(posix.pid_t(child_pid), &status, nil) == -1 {
-			fmt.printf("failed to wait on child\n")
-			return
-		}
+		time.sleep(1 * time.Millisecond)
 	}
 	trailing_ts := time.read_cycle_counter()
+
+	if trace.requested_stop {
+		// TODO: Should this kill the child? Detach? Not sure.
+
+	// Wait for the program to fully finish
+	} else {
+		status: i32 = 0
+		posix.waitpid(posix.pid_t(child_pid), &status, nil)
+
+		for !posix.WIFEXITED(status) && posix.WIFSIGNALED(status) {
+			if posix.waitpid(posix.pid_t(child_pid), &status, nil) == -1 {
+				fmt.printf("failed to wait on child\n")
+				return
+			}
+		}
+	}
 
 	freq, _ := time.tsc_frequency()
 

@@ -329,6 +329,7 @@ Trace :: struct {
 	zoom_event: EventID,
 
 	load_kickoff: time.Tick,
+	requested_stop: bool,
 	error_message: string,
 	error_storage: [4096]u8,
 }

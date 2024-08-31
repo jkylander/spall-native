@@ -2563,29 +2563,29 @@ draw_sample_running :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState
 	p_height  := get_text_height(.PSize, .DefaultFont)
 	h1_height := get_text_height(.H1Size, .DefaultFont)
 
-	form_w := 30 * em
-	form_h := em + p_height
-
 	menu_rect := Rect{0, 0, ui_state.width, ui_state.height}
 	draw_rect(gfx, menu_rect, bg_color)
 
-	line_x := menu_rect.w / 3
-	line_y := (menu_rect.h / 3) + menu_rect.y
+	if !trace.requested_stop {
+		edge_pad := 1 * em
+		button_height := 2 * em
+		sample_button_text := "Stop"
+		sample_button_width := measure_text(sample_button_text, .PSize, .DefaultFont) + edge_pad
 
-	edge_pad := 1 * em
-	button_height := 2 * em
-	button_width  := 2 * em
-	sample_button_text := "Stop"
-	sample_button_width := measure_text(sample_button_text, .PSize, .DefaultFont) + em
-	full_form_w := form_w + edge_pad + button_width
-	stop_sample_rect := Rect{line_x + (full_form_w / 2) - (sample_button_width / 2), line_y, sample_button_width, p_height + (em / 2)}
+		total_duration := time.tick_since(trace.load_kickoff)
+		time_text := fmt.tprintf("Sampling for %.1f s", time.duration_seconds(total_duration))
+		time_width := measure_text(time_text, .PSize, .DefaultFont)
+		draw_text(gfx, time_text, Vec2{(ui_state.width / 2) - (time_width / 2), (ui_state.height / 2) - (p_height / 2)}, .PSize, .DefaultFont, text_color)
+		line_y := (ui_state.height / 2) + (p_height / 2) + (2 * em)
 
-	total_duration := time.tick_since(trace.load_kickoff)
-	time_text := fmt.tprintf("%.1f s", time.duration_seconds(total_duration))
-
-	draw_text(gfx, time_text, Vec2{ui_state.width / 2, ui_state.height / 2}, .PSize, .DefaultFont, text_color)
-	if button(gfx, stop_sample_rect, sample_button_text, "", .DefaultFont, menu_rect.x, menu_rect.w) {
-		fmt.printf("stopping child\n")
+		stop_sample_rect := Rect{(ui_state.width / 2) - (sample_button_width / 2), line_y - (button_height / 2), sample_button_width, p_height + (edge_pad / 2)}
+		if button(gfx, stop_sample_rect, sample_button_text, "", .DefaultFont, menu_rect.x, menu_rect.w) {
+			trace.requested_stop = true
+		}
+	} else {
+		stop_text := "Stopping Sampling..."
+		stop_width := measure_text(stop_text, .PSize, .DefaultFont)
+		draw_text(gfx, stop_text, Vec2{(ui_state.width / 2) - (stop_width / 2), (ui_state.height / 2) - (p_height / 2)}, .PSize, .DefaultFont, text_color)
 	}
 
 	ui_state.render_one_more = true
