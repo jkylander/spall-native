@@ -1,4 +1,4 @@
-//+build darwin
+#+build darwin
  
 package main
 
@@ -50,8 +50,8 @@ map_child_mem :: proc(my_task: darwin.task_t, child_task: darwin.task_t, addr: u
 	full_size := page_end_addr - page_start_addr
 
 	data: [^]u8
-	cur_prot : i32 = darwin.VM_PROT_NONE
-	max_prot : i32 = darwin.VM_PROT_NONE
+	cur_prot : i32 = (i32)(darwin.VM_PROT_NONE)
+	max_prot : i32 = (i32)(darwin.VM_PROT_NONE)
 	if darwin.mach_vm_remap(my_task, &data, full_size, 0, 1, child_task, page_start_addr, false, &cur_prot, &max_prot, darwin.VM_INHERIT_SHARE) != 0 {
 		return
 	}
@@ -83,8 +83,8 @@ map_child_slice :: proc(my_task: darwin.task_t, child_task: darwin.task_t, addr:
 	full_size := page_end_addr - page_start_addr
 
 	data: [^]u8
-	cur_prot : i32 = darwin.VM_PROT_NONE
-	max_prot : i32 = darwin.VM_PROT_NONE
+	cur_prot : i32 = (i32)(darwin.VM_PROT_NONE)
+	max_prot : i32 = (i32)(darwin.VM_PROT_NONE)
 	if darwin.mach_vm_remap(my_task, &data, full_size, 0, 1, child_task, page_start_addr, false, &cur_prot, &max_prot, darwin.VM_INHERIT_SHARE) != 0 {
 		return
 	}
