@@ -108,6 +108,48 @@ unmap_child_slice :: proc(my_task: darwin.task_t, orig_addr: u64, mem: []u8) {
 	darwin.mach_vm_deallocate(my_task, mem_ptr, full_size)
 }
 
+sample_arm64_thread :: proc(my_task: darwin.task_t, child_task: darwin.task_t, thread: darwin.thread_act_t, ts: u64, sample_thread: ^Sample_Thread) -> (ok: bool) {
+	state: darwin.arm_thread_state64_t
+	state_count: u32 = darwin.ARM_THREAD_STATE64_COUNT
+	if darwin.thread_get_state(thread, darwin.ARM_THREAD_STATE64, darwin.thread_state_t(&state), &state_count) != 0 {
+		return
+	}
+
+	cur_depth := 1
+
+	append(&sample_thread.samples, Sample{ts = i64(ts), callstack = make([dynamic]u64)})
+	callstack := &sample_thread.samples[len(sample_thread.samples)-1].callstack
+    append(callstack, state.pc)
+	sample_thread.max_depth = max(sample_thread.max_depth, cur_depth)
+
+	sp := state.sp
+	bp := state.fp
+	for {
+
+		// If the base pointer is 0, we're at the top of the stack
+		if bp == 0 {
+			return true
+		}
+
+		// base pointer should be aligned
+		if bp % 8 != 0 {
+			return false
+		}
+
+		slot := map_child_mem(my_task, child_task, bp, u64) or_return
+
+		append(callstack, bp)
+		cur_depth += 1
+		sample_thread.max_depth = max(sample_thread.max_depth, cur_depth)
+
+		new_bp := slot^
+		unmap_child_mem(my_task, bp, slot)
+
+		bp = new_bp
+	}
+
+    return true
+}
 
 sample_x86_thread :: proc(my_task: darwin.task_t, child_task: darwin.task_t, thread: darwin.thread_act_t, ts: u64, sample_thread: ^Sample_Thread) -> (ok: bool) {
 	state: darwin.x86_thread_state64_t
@@ -281,6 +323,8 @@ sample_task :: proc(trace: ^Trace, my_task: darwin.task_t, child_task: darwin.ta
 
 		if ODIN_ARCH == .amd64 {
 			sample_x86_thread(my_task, child_task, thread, ts, sample_thread)
+        } else if ODIN_ARCH == .arm64 {
+            sample_arm64_thread(my_task, child_task, thread, ts, sample_thread)
 		} else {
 			fmt.printf("don't support yet!\n")
 			continue
@@ -414,9 +458,18 @@ sample_child :: proc(trace: ^Trace, program_name: string, args: []string) -> (ok
 				return
 			}
 		}
-	}
+    }
 
-	freq, _ := time.tsc_frequency()
+    freq : u64 = 0
+    if ODIN_ARCH == .amd64 {
+        freq, _ = time.tsc_frequency()
+    } else if ODIN_ARCH == .arm64 {
+        // TODO: This is incorrect
+        freq = 1_000_000_000
+    } else {
+        fmt.printf("Unable to get timer frequency!\n")
+        return
+    }
 
 	trace.stamp_scale = ((1 / f64(freq)) * 1_000_000_000)
 
