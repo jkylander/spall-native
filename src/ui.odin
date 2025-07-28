@@ -1564,6 +1564,10 @@ draw_stats :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 			if ok {
 				draw_text(gfx, fmt.tprintf("source: %s", cur_bucket.source_path), Vec2{text_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 			}
+
+			if ev.has_addr {
+				draw_text(gfx, fmt.tprintf("address: 0x%08x", ev.id), Vec2{text_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
+			}
 		}
 		draw_text(gfx, fmt.tprintf("start time: %s", time_fmt(disp_time(trace, f64(ev.timestamp - trace.total_min_time)))), Vec2{text_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)
 		draw_text(gfx, fmt.tprintf("  duration: %s", time_fmt(disp_time(trace, f64(bound_duration(&ev, thread.max_time))))), Vec2{text_x, next_line(&y, em)}, .PSize, .MonoFont, text_color)

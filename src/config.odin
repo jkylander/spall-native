@@ -547,6 +547,7 @@ load_executable :: proc(trace: ^Trace, file_name: string, base_addr: u64) -> boo
 		}
 		defer delete(debug_buffer)
 
+		fmt.printf("loading debug info from %s\n", debug_file_name)
 		load_macho_debug(trace, debug_buffer, bucket)
 	} else if bytes.equal(exec_buffer[:2], DOS_MAGIC) {
 		ok := load_pe32(trace, exec_buffer, bucket)
@@ -805,8 +806,7 @@ get_bucket :: proc(trace: ^Trace, addr: u64) -> (^Func_Bucket, bool) {
 
 		first_func := bucket.functions[0]
 		last_func := bucket.functions[len(bucket.functions)-1]
-		if addr >= first_func.low_pc &&
-		   addr <= last_func.high_pc {
+		if addr >= first_func.low_pc && addr <= last_func.high_pc {
 			//fmt.printf("0x%08x | [0x%08x - 0x%08x]\n", _addr, first_func.low_pc, last_func.high_pc)
 			cur_bucket = &bucket
 			break
@@ -837,6 +837,8 @@ get_function :: proc(trace: ^Trace, addr: u64) -> (u64, bool) {
 		return 0, false
 	}
 
+/*
+
 	low := 0
 	max := len(cur_bucket.functions)
 	high := max - 1
@@ -861,6 +863,22 @@ get_function :: proc(trace: ^Trace, addr: u64) -> (u64, bool) {
 	}
 
 	//fmt.printf("Failed to match: 0x%08x | looking at 0x%08x -> 0x%08x\n", addr, function.low_pc, function.high_pc)
+	return 0, false
+
+*/
+
+	found_seq := false
+	for function, idx in cur_bucket.functions {
+		if addr >= function.low_pc && addr <= function.high_pc {
+			//fmt.printf("%s|0x%08x in 0x%08x -> 0x%08x\n", in_getstr(&trace.string_block, function.name), addr, function.low_pc, function.high_pc)
+			if !found_seq {
+				found_seq = true
+			}
+		} else if found_seq {
+			return cur_bucket.functions[idx-1].name, true
+		}
+	}
+
 	return 0, false
 }
 

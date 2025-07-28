@@ -69,7 +69,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		id        := current_addr^
 		caller_id := current_caller^
 		timestamp := current_time^
-
+		timestamp = max(timestamp, thread.zero_patchup)
 
 		if thread.max_time > timestamp {
 			post_error(trace, 
@@ -111,6 +111,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 		dt := pull_uval(chunk[chunk_pos(p)+i:], int(dt_size)); i += dt_size
 
 		ts := current_time^ + i64(dt)
+		ts = max(ts, thread.zero_patchup)
 
 		if thread.bande_q.len > 0 {
 			jev_idx := stack_pop_back(&thread.bande_q)
@@ -119,6 +120,11 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 			depth := &thread.depths[thread.current_depth]
 			jev := &depth.events[jev_idx]
 			jev.duration = ts - jev.timestamp
+			if jev.duration == 0 {
+				thread.zero_patchup = ts
+				thread.zero_patchup += 1
+				jev.duration = 1
+			}
 			jev.self_time = jev.duration - jev.self_time
 
 			thread.max_time      = max(thread.max_time, jev.timestamp + jev.duration)
@@ -166,6 +172,7 @@ as_parse_next_event :: proc(trace: ^Trace, chunk: []u8, process: ^Process, threa
 
 			current_time^ = current_time^ + i64(dt)
 			timestamp := current_time^
+			timestamp = max(timestamp, thread.zero_patchup)
 
 			if thread.max_time > timestamp {
 				post_error(trace, 

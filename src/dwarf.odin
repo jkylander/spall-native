@@ -519,6 +519,8 @@ Function_Unit :: struct {
 	specification: u64,
 }
 
+dump_toggle := false
+
 reset_line_machine :: proc(lm_state: ^Line_Machine, default_is_stmt: bool) {
 	lm_state.address  = 0
 	lm_state.op_idx   = 0
@@ -1506,6 +1508,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 		next_cu_offset := cur_cu_offset + int(next_offset)
 		for rdr.idx < next_cu_offset {
 			block_offset := rdr.idx
+			//dump_toggle = block_offset == 0x000012d9
 
 			clear(&attr_scratch)
 			clear(&attr_scratch2)
@@ -1521,12 +1524,14 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 
 			au := cu.abbrevs[au_idx]
 
-			/*
-			fmt.printf("0x%08x\n", block_offset)
-			for attr, idx in attr_scratch {
-				fmt.printf("\t%s - %s(%v)\n", attr.id, au.attrs[idx].form_id, attr.val)
+/*
+			if dump_toggle {
+				fmt.printf("0x%08x\n", block_offset)
+				for attr, idx in attr_scratch {
+					fmt.printf("\t%s - %s(%v)\n", attr.id, au.attrs[idx].form_id, attr.val)
+				}
 			}
-			*/
+*/
 
 			#partial switch au.type {
 			case .compile_unit:
@@ -1568,7 +1573,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 					name := get_attr_str(&ctx, &cu, attrs, .name)
 					if name != "" {
 						func_name = name
-						//fmt.printf("Got name: %v\n", func_name)
 						break func_loop
 					}
 
@@ -1584,7 +1588,6 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 						}
 						attrs = attr_scratch2[:]
 						if status == .Pass {
-							//fmt.printf("resolving abstract origin:\n\tnew_abbrev: %#v\n", attrs)
 							continue
 						}
 					}
@@ -1627,6 +1630,7 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 						fmt.printf("Invalid function range!\n")
 						return false
 					}
+
 					add_func(bucket, sym_idx, low_pc, high_pc, text_skew)
 				} else {
 					ranges_val := get_attr(attr_scratch[:], .ranges)
@@ -1662,11 +1666,12 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 		return a.low_pc < b.low_pc
 	}
 	slice.sort_by(bucket.functions[:], func_order)
-	/*
-	for func in functions {
-		fmt.printf("%s - 0x%08x -> 0x%08x\n", in_getstr(&trace.string_block, func.name), func.low_pc, func.high_pc)
+
+/*
+	for func in bucket.functions {
+		fmt.printf("0x%08x -> 0x%08x | %s\n", func.low_pc, func.high_pc, in_getstr(&trace.string_block, func.name))
 	}
-	*/
+*/
 
 	return true
 }

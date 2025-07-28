@@ -215,7 +215,7 @@ load_macho_symbols :: proc(trace: ^Trace, _exec_buffer: []u8, bucket: ^Func_Buck
 		if !ok2 {
 			return false
 		}
-
+/*
 		sym_idx := in_get(&trace.intern, &trace.string_block, demangled_name)
 		sym_addr := bucket.base_address + symbol.value - text_segment_offset
 		if len(bucket.functions) > 1 {
@@ -225,6 +225,7 @@ load_macho_symbols :: proc(trace: ^Trace, _exec_buffer: []u8, bucket: ^Func_Buck
 			//fmt.printf("0x%08x - 0x%08x | %s\n", prev_func.low_pc, prev_func.high_pc, str)
 		}
 		non_zero_append(&bucket.functions, Function{name = sym_idx, low_pc = sym_addr, high_pc = sym_addr})
+*/
 	}
 
 	return true
@@ -271,7 +272,7 @@ load_macho_debug :: proc(trace: ^Trace, exec_buffer: []u8, bucket: ^Func_Bucket)
 						sections.line        = create_subbuffer(exec_buffer, u64(section.offset), section.size) or_return
 					case "__debug_str":
 						sections.debug_str   = create_subbuffer(exec_buffer, u64(section.offset), section.size) or_return
-					case "__debug_str_offsets":
+					case "__debug_str_offs":
 						sections.str_offsets = create_subbuffer(exec_buffer, u64(section.offset), section.size) or_return
 					case "__debug_line_str":
 						sections.line_str    = create_subbuffer(exec_buffer, u64(section.offset), section.size) or_return
