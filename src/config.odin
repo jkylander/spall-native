@@ -283,7 +283,9 @@ chunk_events :: proc(trace: ^Trace) {
 	// using an eytzinger LOD tree for each depth array
 	for &proc_v, p_idx in trace.processes {
 		for &tm, t_idx in proc_v.threads {
+			//fmt.printf("stepped thread\n")
 			for &depth, d_idx in tm.depths {
+				//fmt.printf("stepped depth\n")
 				leaf_count := i_round_up(len(depth.events), BUCKET_SIZE) / BUCKET_SIZE
 				depth.leaf_count = leaf_count
 
@@ -328,6 +330,7 @@ chunk_events :: proc(trace: ^Trace) {
 				}
 				depth.overhang_len = overhang_len
 
+				//fmt.printf("walking %v overhang events\n", overhang_len)
 				for i := 0; i < overhang_len; i += 1 {
 					start_idx := i * BUCKET_SIZE
 					end_idx := start_idx + min(len(depth.events) - start_idx, BUCKET_SIZE)
@@ -346,6 +349,7 @@ chunk_events :: proc(trace: ^Trace) {
 
 				previous_len := leaf_count - overhang_len
 				ev_offset := overhang_len * BUCKET_SIZE
+				//fmt.printf("walking %v previous events\n", previous_len)
 				for i := 0; i < previous_len; i += 1 {
 					start_idx := (i * BUCKET_SIZE) + ev_offset
 					end_idx := start_idx + min(len(depth.events) - start_idx, BUCKET_SIZE)
@@ -361,6 +365,7 @@ chunk_events :: proc(trace: ^Trace) {
 					gen_event_color(trace, scan_arr, tm.max_time, node)
 				}
 
+				//fmt.printf("blending colors for %v nodes\n", tree_start_idx - 1)
 				avg_color := FVec3{}
 				for i := tree_start_idx - 1; i >= 0; i -= 1 {
 					node := &tree[i]
@@ -496,6 +501,24 @@ get_event_range :: proc(depth: ^Depth, idx: int) -> (int, int) {
 pid_sort_proc :: proc(a, b: Process) -> bool { return a.min_time < b.min_time }
 tid_sort_proc :: proc(a, b: Thread) -> bool  { return a.min_time < b.min_time }
 
+new_func_bucket :: proc(buckets: ^[dynamic]Func_Bucket, path: string, base_addr: u64) -> ^Func_Bucket {
+	append(buckets,
+		Func_Bucket{
+			source_path = path,
+			base_address = base_addr,
+			functions = make([dynamic]Function),
+			scopes = Scope{
+				func_idx = max(u64),
+				low_pc = max(u64),
+				high_pc = min(u64),
+				children = make([dynamic]Scope),
+			},
+		},
+	)
+
+	return &buckets[len(buckets)-1]
+}
+
 Load_Symbols_Args :: struct {
 	trace: ^Trace,
 	base_addr: u64,
@@ -521,8 +544,7 @@ load_executable :: proc(trace: ^Trace, file_name: string, base_addr: u64) -> boo
 		return false
 	}
 	
-	append(&trace.func_buckets, Func_Bucket{source_path = file_name, base_address = base_addr, functions = make([dynamic]Function)})
-	bucket := &trace.func_buckets[len(trace.func_buckets)-1]
+	bucket := new_func_bucket(&trace.func_buckets, file_name, base_addr)
 
 	magic_chunk := (^u32)(raw_data(exec_buffer[:4]))^
 	if bytes.equal(exec_buffer[:4], ELF_MAGIC) {
@@ -821,6 +843,29 @@ get_bucket :: proc(trace: ^Trace, addr: u64) -> (^Func_Bucket, bool) {
 	return cur_bucket, true
 }
 
+find_next_scope :: proc(scopes: ^[dynamic]Scope, addr: u64) -> (^Scope, bool) {
+	low := 0
+	max := len(scopes)
+	high := max - 1
+
+	scope: ^Scope
+	for low <= high {
+		mid := low + (high - low) / 2
+
+		scope = &scopes[mid]
+
+		if addr >= scope.low_pc && addr <= scope.high_pc {
+			return scope, true
+		} else if addr >= scope.high_pc { 
+			low = mid + 1
+		} else { 
+			high = mid - 1
+		}
+	}
+
+	return nil, false
+}
+
 get_function :: proc(trace: ^Trace, addr: u64) -> (u64, bool) {
 	cur_bucket, ok := get_bucket(trace, addr)
 	if !ok {
@@ -831,57 +876,29 @@ get_function :: proc(trace: ^Trace, addr: u64) -> (u64, bool) {
 		return 0, false
 	}
 
-	low_pc := cur_bucket.functions[0].low_pc
-	high_pc := cur_bucket.functions[len(cur_bucket.functions)-1].high_pc
+	low_pc := cur_bucket.scopes.low_pc
+	high_pc := cur_bucket.scopes.high_pc
 
 	// make sure address is within function bounds
 	if low_pc > addr || high_pc < addr {
 		return 0, false
 	}
 
-/*
-
-	low := 0
-	max := len(cur_bucket.functions)
-	high := max - 1
-
-	for low < high {
-		mid := (low + high) / 2
-
-		function := cur_bucket.functions[mid]
-		if addr >= function.low_pc && addr <= function.high_pc {
-			return function.name, true
-		} else if addr >= function.high_pc { 
-			low = mid + 1
-		} else { 
-			high = mid - 1
+	cur_scope := &cur_bucket.scopes
+	scopes_walk: for addr_in_scope(addr, cur_scope) {
+		child_scope, ok := find_next_scope(&cur_scope.children, addr)
+		if !ok {
+			break scopes_walk
 		}
+
+		cur_scope = child_scope
 	}
 
-	function := cur_bucket.functions[low]
-
-	if addr >= function.low_pc && addr <= function.high_pc {
-		return function.name, true
+	if cur_scope.func_idx == max(u64) {
+		return 0, false
 	}
 
-	//fmt.printf("Failed to match: 0x%08x | looking at 0x%08x -> 0x%08x\n", addr, function.low_pc, function.high_pc)
-	return 0, false
-
-*/
-
-	found_seq := false
-	for function, idx in cur_bucket.functions {
-		if addr >= function.low_pc && addr <= function.high_pc {
-			//fmt.printf("%s|0x%08x in 0x%08x -> 0x%08x\n", in_getstr(&trace.string_block, function.name), addr, function.low_pc, function.high_pc)
-			if !found_seq {
-				found_seq = true
-			}
-		} else if found_seq {
-			return cur_bucket.functions[idx-1].name, true
-		}
-	}
-
-	return 0, false
+	return cur_bucket.functions[cur_scope.func_idx].name, true
 }
 
 get_line_info :: proc(trace: ^Trace, addr: u64) -> (string, u64, bool) {
@@ -928,19 +945,99 @@ get_line_info :: proc(trace: ^Trace, addr: u64) -> (string, u64, bool) {
 	return "", 0, false
 }
 
-add_line_info :: proc(bucket: ^Func_Bucket, _addr: u64, line_num: u64, name: string, text_skew: u64) {
-	addr := (bucket.base_address + _addr) - text_skew
-
+add_line_info :: proc(bucket: ^Func_Bucket, addr: u64, line_num: u64, name: string) {
 	line := Line_Info{address = addr, filename = name, line_num = line_num}
 	non_zero_append(&bucket.line_info, line)
 }
 
-add_func :: proc(bucket: ^Func_Bucket, sym_idx: u64, low_pc: u64, high_pc: u64, text_skew: u64) {
-	_low_pc := (bucket.base_address + low_pc) - text_skew
-	_high_pc := (bucket.base_address + high_pc) - text_skew
+add_func :: proc(bucket: ^Func_Bucket, sym_idx: u64, in_low_pc: u64, in_high_pc: u64, text_skew: u64) {
+	low_pc := (bucket.base_address + in_low_pc) - text_skew
+	high_pc := (bucket.base_address + in_high_pc) - text_skew
 
-	real_high := max(_low_pc, _high_pc - 1)
-	func := Function{name = sym_idx, low_pc = _low_pc, high_pc = real_high}
-	//fmt.printf("func: 0x%08x - 0x%08x, got: 0x%08x - 0x%08x\n", func.low_pc, func.high_pc, low_pc, high_pc)
+	high_pc = max(low_pc, high_pc - 1)
+
+	bucket.scopes.low_pc = min(bucket.scopes.low_pc, low_pc)
+	bucket.scopes.high_pc = max(bucket.scopes.high_pc, high_pc)
+
+	func := Function{name = sym_idx, low_pc = low_pc, high_pc = high_pc}
 	non_zero_append(&bucket.functions, func)
+}
+
+func_order :: proc(a, b: Function) -> bool {
+	if a.low_pc < b.low_pc {
+		return true
+	}
+	if a.low_pc > b.low_pc {
+		return false
+	}
+	if a.high_pc > b.high_pc {
+		return true
+	}
+
+	return false
+}
+
+func_in_scope :: proc(f: Function, s: ^Scope) -> bool {
+	return f.low_pc >= s.low_pc && f.high_pc <= s.high_pc
+}
+
+addr_in_scope :: proc(addr: u64, s: ^Scope) -> bool {
+	return addr >= s.low_pc && addr <= s.high_pc
+}
+
+scope_name :: proc(trace: ^Trace, bucket: ^Func_Bucket, s: ^Scope) -> string {
+	if s.func_idx == max(u64) {
+		return "(scope - root)"
+	}
+
+	func := bucket.functions[s.func_idx]
+	return in_getstr(&trace.string_block, func.name)
+}
+
+print_scope :: proc(trace: ^Trace, bucket: ^Func_Bucket, s: ^Scope, depth: int = 0) {
+	for i := 0; i < depth; i += 1 {
+		fmt.printf("    ")
+	}
+
+	fmt.printf("scope: [0x%08X -> 0x%08X] %s\n", s.low_pc, s.high_pc, scope_name(trace, bucket, s))
+}
+
+print_scope_tree :: proc(trace: ^Trace, bucket: ^Func_Bucket, s: ^Scope, depth: int = 0) {
+	print_scope(trace, bucket, s, depth)
+
+	for &child in s.children {
+		print_scope_tree(trace, bucket, &child, depth + 1)
+	}
+}
+
+build_scopes :: proc(trace: ^Trace, bucket: ^Func_Bucket) {
+	fmt.printf("Building scopes!\n")
+	if len(bucket.functions) == 0 {
+		return
+	}
+
+	for func, idx in bucket.functions {
+		cur_scope := &bucket.scopes
+
+		scopes_walk: for func_in_scope(func, cur_scope) {
+			child_scope: ^Scope
+			child_walk: for &child, _ in cur_scope.children {
+				if func_in_scope(func, &child) {
+					child_scope = &child
+					break child_walk
+				}
+			}
+
+			if child_scope == nil {
+				new_scope := Scope{func_idx = u64(idx), low_pc = func.low_pc, high_pc = func.high_pc}
+				append(&cur_scope.children, new_scope)
+				break scopes_walk
+			} else {
+				cur_scope = child_scope
+			}
+		}
+	}
+
+	fmt.printf("scopes built\n")
+	//print_scope_tree(trace, bucket, &bucket.scopes)
 }

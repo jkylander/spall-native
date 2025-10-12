@@ -1653,7 +1653,8 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 			if !ok {
 				continue
 			}
-			add_line_info(bucket, line.address, line.line_num, name, text_skew)
+			addr := (bucket.base_address + line.address) - text_skew
+			add_line_info(bucket, addr, line.line_num, name)
 		}
 	}
 	line_order :: proc(a, b: Line_Info) -> bool {
@@ -1662,10 +1663,10 @@ load_dwarf :: proc(trace: ^Trace, sections: ^Sections, bucket: ^Func_Bucket, tex
 	slice.sort_by(bucket.line_info[:], line_order)
 
 	fmt.printf("DWARF: sorting functions\n")
-	func_order :: proc(a, b: Function) -> bool {
-		return a.low_pc < b.low_pc
-	}
 	slice.sort_by(bucket.functions[:], func_order)
+
+	fmt.printf("DWARF: building scope tree\n")
+	build_scopes(trace, bucket)
 
 /*
 	for func in bucket.functions {

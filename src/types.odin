@@ -299,11 +299,21 @@ CU_File_Entry :: struct {
 	file_idx: u64,
 }
 
+Scope :: struct {
+	func_idx: u64,
+
+	low_pc: u64,
+	high_pc: u64,
+
+	children: [dynamic]Scope,
+}
+
 Func_Bucket :: struct {
 	source_path: string,
 	base_address: u64,
 	functions: [dynamic]Function,
 	line_info: [dynamic]Line_Info,
+	scopes: Scope,
 }
 
 COLOR_CHOICES :: 64
@@ -373,6 +383,7 @@ Thread :: struct {
 
 	bande_q: Stack(int),
 	zero_patchup: i64,
+	//last_dt: i64,
 }
 
 Process :: struct {
@@ -415,6 +426,7 @@ init_thread :: proc(thread_id: u32) -> Thread {
 	t := Thread{
 		min_time = max(i64), 
 		zero_patchup = -1,
+		//last_dt = -1,
 		id = thread_id,
 		in_stats = true,
 		events = make([dynamic]Event),

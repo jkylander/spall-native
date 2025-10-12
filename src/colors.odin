@@ -129,13 +129,40 @@ name_color_idx :: proc(name: string) -> u64 {
 	return u64(ret) & u64(COLOR_CHOICES - 1)
 }
 
+
 generate_color_choices :: proc(trace: ^Trace) {
+/*
+	trace.color_choices = [COLOR_CHOICES]FVec3{
+		FVec3{168,0,0}, FVec3{140,54,0}, FVec3{99,75,0},
+		FVec3{74,82,0}, FVec3{0,89,33}, FVec3{0,85,92},
+		FVec3{0,77,144}, FVec3{79,0,231}, FVec3{109,0,205},
+		FVec3{130,0,175}, FVec3{146,0,140}, FVec3{161,0,88},
+		FVec3{111,0,0}, FVec3{93,36,0}, FVec3{66,50,0},
+		FVec3{49,54,0}, FVec3{0,59,22}, FVec3{0,56,61},
+		FVec3{0,51,95}, FVec3{52,0,153}, FVec3{72,0,135},
+		FVec3{86,0,115}, FVec3{96,0,92}, FVec3{106,0,58},
+		FVec3{117,42,42}, FVec3{100,53,42}, FVec3{76,63,42},
+		FVec3{62,67,42}, FVec3{42,70,46}, FVec3{42,68,72},
+		FVec3{42,64,102}, FVec3{65,42,157}, FVec3{81,42,139},
+		FVec3{93,42,121}, FVec3{103,42,99}, FVec3{112,42,69},
+		FVec3{176,62,62}, FVec3{150,79,62}, FVec3{114,94,62},
+		FVec3{94,100,62}, FVec3{62,105,68}, FVec3{62,102,108},
+		FVec3{62,96,154}, FVec3{98,62,237}, FVec3{122,62,211},
+		FVec3{141,62,182}, FVec3{156,62,150}, FVec3{169,62,104},
+		FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{},
+		FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{}, FVec3{},
+	}
+
+	presets := 48
+	for i := presets; i < COLOR_CHOICES; i += 1 {
+		trace.color_choices[i] = trace.color_choices[i - presets]
+	}
+*/
 	trace.color_choices[0] = hex_to_fvec(0x6faadc)
 	trace.color_choices[1] = hex_to_fvec(0xF1B212)
 	trace.color_choices[2] = hex_to_fvec(0x8bd124)
 	trace.color_choices[3] = hex_to_fvec(0xae74da)
 	trace.color_choices[4] = hex_to_fvec(0xf07481)
-
 	presets := 5
 	for i := presets; i < COLOR_CHOICES; i += 1 {
 		trace.color_choices[i] = trace.color_choices[i - presets]

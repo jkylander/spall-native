@@ -391,7 +391,8 @@ load_pdb :: proc(trace: ^Trace, section_buffer: []u8, pdb_buffer: []u8, bucket: 
 								panic("Out of Memory!\n")
 							}
 
-							non_zero_append(&bucket.line_info, Line_Info{line_addr + u64(line.offset), u64(line_num), interned_name})
+							add_line_info(bucket, line_addr + u64(line.offset), u64(line_num), interned_name)
+
 							cur_offset += size_of(PDB_Line)
 						}
 
@@ -411,6 +412,15 @@ load_pdb :: proc(trace: ^Trace, section_buffer: []u8, pdb_buffer: []u8, bucket: 
 			cur_offset = end_offset
 		}
 	}
+
+	line_order :: proc(a, b: Line_Info) -> bool {
+		return a.address < b.address
+	}
+	slice.sort_by(bucket.line_info[:], line_order)
+
+	fmt.printf("PDB: sorting functions\n")
+	slice.sort_by(bucket.functions[:], func_order)
+	build_scopes(trace, bucket)
 
 	return true
 }
