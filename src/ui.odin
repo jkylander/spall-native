@@ -1724,7 +1724,7 @@ draw_stats :: proc(gfx: ^GFX_Context, trace: ^Trace, ui_state: ^UIState) {
 			text_outf(gfx, &cursor, y, self_text, text_color2);   cursor += column_gap
 			{
 				full_perc_width := measure_text(total_perc_text, .PSize, .MonoFont)
-				perc_width := (ch_width * 6) - full_perc_width
+				perc_width := (ch_width * 5) - full_perc_width
 
 				text_outf(gfx, &cursor, y, total_text, text_color2); cursor += ch_width
 				cursor += perc_width
