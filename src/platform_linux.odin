@@ -3,7 +3,7 @@ package main
 
 import "core:c"
 import "core:sys/unix"
-import "core:os"
+import os "core:os/old"
 import "core:fmt"
 import "core:strings"
 import "core:time"
@@ -214,7 +214,8 @@ _get_dpi :: proc(x_display: ^xlib.Display) -> f32 {
 	}
 
 	dpi_str := string(cstring(value.addr))
-	dpi = f32(strconv.atof(dpi_str))
+	ok: bool
+	dpi, ok = strconv.parse_f32(dpi_str)
 	if dpi == 0 {
 		return 96
 	}
@@ -227,7 +228,7 @@ _create_cursor :: proc(display: ^xlib.Display, name: cstring, theme: cstring, si
 	if theme != nil {
 		img := xlib.cursorLibraryLoadImage(name, theme, size)
 		if img != nil {
-			cursor := xlib.cursorImageLoadCursor(display, img)
+			cursor := xlib.cursorImageLoadCursor(display, auto_cast img)
 			xlib.cursorImageDestroy(img)
 			return cursor
 		}
